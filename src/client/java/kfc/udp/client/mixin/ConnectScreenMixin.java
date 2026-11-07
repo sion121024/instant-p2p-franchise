@@ -1,0 +1,121 @@
+package kfc.udp.client.mixin;
+
+import kfc.udp.client.quic.QuicBridge;
+//? if >=26.1 {
+/*import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ConnectScreen;
+import net.minecraft.client.gui.screens.DisconnectedScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.TransferState;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.network.chat.Component;
+*///?} else {
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.DisconnectedScreen;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
+import net.minecraft.client.network.ServerAddress;
+import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.network.CookieStorage;
+import net.minecraft.text.Text;
+//?}
+import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(ConnectScreen.class)
+public class ConnectScreenMixin {
+
+    //? if >=26.1 {
+    /*@Inject(
+            method = "startConnecting(Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/client/Minecraft;Lnet/minecraft/client/multiplayer/resolver/ServerAddress;Lnet/minecraft/client/multiplayer/ServerData;ZLnet/minecraft/client/multiplayer/TransferState;)V",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private static void kfcudp$onConnect(
+            Screen screen,
+            Minecraft client,
+            ServerAddress address,
+            ServerData serverInfo,
+            boolean quickPlay,
+            @Nullable TransferState cookieStorage,
+            CallbackInfo ci) {
+
+        String originalAddress = serverInfo != null ? serverInfo.ip : address.getHost();
+
+        // quic. — 커스텀 방(초대 코드) 접속. 프리픽스는 connectToRoom 이 내부에서 붙인다.
+        String quicRoom = QuicBridge.parseRoomId(originalAddress);
+        if (quicRoom != null) {
+            ci.cancel();
+            QuicBridge.LOG.debug("[QUIC] Connecting via QUIC"); // 방 코드는 남기지 않는다(로그를 공유하면 남이 들어온다)
+            try {
+                int localPort = QuicBridge.start(quicRoom);
+                ServerAddress localAddr = new ServerAddress("127.0.0.1", localPort);
+                ServerData localInfo = new ServerData(
+                        serverInfo != null ? serverInfo.name : quicRoom,
+                        "127.0.0.1:" + localPort,
+                        ServerData.Type.OTHER
+                );
+                client.execute(() ->
+                        ConnectScreen.startConnecting(screen, client, localAddr, localInfo, false, null)
+                );
+            } catch (Exception e) {
+                QuicBridge.LOG.warn("[QUIC] Failed to start: {}", e.getMessage(), e);
+                client.execute(() -> client.setScreenAndShow(new DisconnectedScreen(
+                        screen,
+                        Component.translatable("connect.failed"),
+                        Component.translatable("instant-p2p.msg.connect_failed", String.valueOf(e.getMessage())))));
+            }
+            return;
+        }
+
+    }
+    *///?} else {
+    @Inject(
+            method = "connect(Lnet/minecraft/client/gui/screen/Screen;Lnet/minecraft/client/MinecraftClient;Lnet/minecraft/client/network/ServerAddress;Lnet/minecraft/client/network/ServerInfo;ZLnet/minecraft/client/network/CookieStorage;)V",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private static void kfcudp$onConnect(
+            Screen screen,
+            MinecraftClient client,
+            ServerAddress address,
+            ServerInfo serverInfo,
+            boolean quickPlay,
+            @Nullable CookieStorage cookieStorage,
+            CallbackInfo ci) {
+
+        String originalAddress = serverInfo != null ? serverInfo.address : address.getAddress();
+
+        // quic. — 커스텀 방(초대 코드) 접속. 프리픽스는 connectToRoom 이 내부에서 붙인다.
+        String quicRoom = QuicBridge.parseRoomId(originalAddress);
+        if (quicRoom != null) {
+            ci.cancel();
+            QuicBridge.LOG.debug("[QUIC] Connecting via QUIC"); // 방 코드는 남기지 않는다(로그를 공유하면 남이 들어온다)
+            try {
+                int localPort = QuicBridge.start(quicRoom);
+                ServerAddress localAddr = new ServerAddress("127.0.0.1", localPort);
+                ServerInfo localInfo = new ServerInfo(
+                        serverInfo != null ? serverInfo.name : quicRoom,
+                        "127.0.0.1:" + localPort,
+                        ServerInfo.ServerType.OTHER
+                );
+                client.execute(() ->
+                        ConnectScreen.connect(screen, client, localAddr, localInfo, false, null)
+                );
+            } catch (Exception e) {
+                QuicBridge.LOG.warn("[QUIC] Failed to start: {}", e.getMessage(), e);
+                client.execute(() -> client.setScreen(new DisconnectedScreen(
+                        screen,
+                        Text.translatable("connect.failed"),
+                        Text.translatable("instant-p2p.msg.connect_failed", String.valueOf(e.getMessage())))));
+            }
+            return;
+        }
+
+    }
+    //?}
+}

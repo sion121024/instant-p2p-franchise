@@ -1,0 +1,36 @@
+{
+  "required": true,
+  "package": "kfc.udp.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "client": [
+    "ConnectScreenMixin",
+    "ServerAddressMixin",
+    "CommandNodeAccessor",
+    "IntegratedServerAccessor",
+    "IntegratedServerStopMixin",
+    "ServerDisconnectStopMixin",
+    "IntegratedServerMaxPlayersMixin",
+    "PlayerJoinMessageMixin",
+    "PlayerManagerAccessor",
+    "PlayerManagerMixin",
+    "DevBadgeMixin",
+    "DevNameMixin",
+    "SocialHideMixin",
+    "SecureChatMixin",
+    "TransferBlockMixin",
+    "ChatGuardMixin",
+    "ChatGuardCommandMixin",
+    "SignEditLogMixin",
+    "BookEditLogMixin",
+    "AcEntityMixin",
+    "AcServerPlayMixin",
+    "AcServerCommonMixin",
+    "AcBlockBreakMixin",
+    "NetFlushMixin",
+    "GuestViewDistanceMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

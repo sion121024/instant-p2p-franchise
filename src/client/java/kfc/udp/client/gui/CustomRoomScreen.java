@@ -1,0 +1,1285 @@
+package kfc.udp.client.gui;
+
+import kfc.udp.client.KfcudpClient;
+//? if >=26.1 {
+/*import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
+import net.minecraft.client.gui.components.CycleButton;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.GameType;
+*///?} else {
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.Tooltip;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.CheckboxWidget;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.world.GameMode;
+//?}
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+public class CustomRoomScreen extends Screen {
+
+    private static final int MIN_PLAYERS         = 2;
+    private static final int MAX_PLAYERS         = 100;
+
+    // 기존 멀티플레이 화면처럼 가로 구분선으로 3개 섹션(상단: 게임모드/정원,
+    // 중간: 방 옵션, 하단: 재생성/취소)을 나눈다. 상단/중간은 위에서부터, 하단은
+    // RoomListScreen과 마찬가지로 this.height 기준으로 아래에서부터 고정한다
+    // (작은 화면에서 하단 섹션이 침범당하지 않게) — divider2Y/buttonsY는 init()에서
+    // 계산하는 인스턴스 필드. 재생성/취소 버튼 자체는 기존처럼 좌우로 배치된다.
+    /** 방 옵션 전체 통합 "적용" 버튼 — 오른쪽 끝은 돌아가기 버튼과 맞춘다(cx+155),
+     * 높이는 돌아가기 버튼과 동일(20). 화면 제목(TITLE_Y)이 이 버튼과 같은 높이에
+     * 오도록 제목 Y도 버튼 높이 기준으로 맞춰 잡는다(세로 중앙 정렬 기준 역산). */
+    private static final int APPLY_BUTTON_Y = 10;
+    private static final int APPLY_BUTTON_H = 20;
+    private static final int APPLY_BUTTON_W = 100;
+    /** "방 닫기 🚫" 버튼 폭 — 라벨(약 45px)에 양옆 여백만 남긴다. */
+    private static final int CLOSE_ROOM_W = 64;
+    private static final int TITLE_Y = APPLY_BUTTON_Y + (APPLY_BUTTON_H - 9) / 2;
+    private static final int ROW1_Y  = 55;
+    private static final int DIVIDER1_Y = ROW1_Y + 28;
+
+    /** 방 옵션 섹션(헤더 텍스트 + 공개 허용 체크박스 + 방 제목 입력란). */
+    private static final int ROW3_Y  = DIVIDER1_Y + 28;
+    private static final int ROW_H         = 22;
+    private static final int VISIBLE_ROWS  = 3;
+
+    /** 옵션 체크박스 스크롤 영역 — 지금은 3개지만 앞으로 늘어날 걸 대비해 한 화면에
+     * {@link #VISIBLE_ROWS}개씩만 보여주고 마우스 휠로 넘긴다. 공개 허용 행과의
+     * 간격도 체크박스끼리의 간격({@link #ROW_H})과 똑같이 맞춘다 — 예전엔 여기만
+     * 26이라 공개 허용만 유독 떨어져 보였다. */
+    private static final int LIST_Y        = ROW3_Y + ROW_H;
+
+    private static final int DIVIDER_COLOR = 0xFF555555;
+    /** 두 구분선 사이(방 옵션 섹션) 배경을 살짝 어둡게 — 기존 마크 멀티플레이/LAN
+     * 화면의 목록 섹션처럼 가운데가 위아래보다 더 짙어 보이게 한다. 위젯들은 이미
+     * super.render()에서 그려진 뒤라, 그 위에 반투명 검정을 덮어 톤만 죽이는 방식
+     * (완전 불투명이면 체크박스/입력란 글자가 안 보이게 된다). */
+    private static final int MIDDLE_SECTION_BG = 0x40000000;
+
+    //? if >=26.1 {
+    /*private static final Component TITLE_TEXT        = Component.translatable("instant-p2p.custom_room.title");
+    private static final Component EDIT_TITLE_TEXT    = Component.translatable("instant-p2p.custom_room.edit_title");
+    private static final Component GAME_MODE_TEXT     = Component.translatable("instant-p2p.custom_room.game_mode");
+    private static final Component MAX_PLAYERS_TEXT   = Component.translatable("instant-p2p.custom_room.max_players", MAX_PLAYERS);
+    private static final Component ALLOW_COMMANDS_TEXT = Component.translatable("instant-p2p.custom_room.allow_commands");
+    private static final Component ALLOW_COMMANDS_TOOLTIP_TEXT = Component.translatable("instant-p2p.custom_room.allow_commands_tooltip");
+    private static final Component ALLOW_BROADCAST_TEXT = Component.translatable("instant-p2p.custom_room.allow_broadcast");
+    private static final Component ALLOW_BROADCAST_TOOLTIP_TEXT = Component.translatable("instant-p2p.custom_room.allow_broadcast_tooltip");
+    private static final Component FORCE_RELAY_TEXT   = Component.translatable("instant-p2p.force_relay");
+    private static final Component FORCE_RELAY_TOOLTIP_TEXT = Component.translatable("instant-p2p.force_relay_tooltip");
+    private static final Component START_TEXT         = Component.translatable("instant-p2p.custom_room.start");
+    private static final Component RESTART_TEXT       = Component.translatable("instant-p2p.custom_room.restart");
+    private static final Component RESTART_WARNING_TEXT = Component.translatable("instant-p2p.custom_room.restart_warning");
+    private static final Component RESTART_TOOLTIP_TEXT = Component.translatable("instant-p2p.custom_room.restart_tooltip");
+    private static final Component APPLY_DISABLED_TOOLTIP_TEXT = Component.translatable("instant-p2p.custom_room.apply_disabled_tooltip");
+    private static final Component PUBLIC_TEXT        = Component.translatable("instant-p2p.custom_room.public_allow");
+    private static final Component PUBLIC_TOOLTIP_TEXT = Component.translatable("instant-p2p.custom_room.public_allow_tooltip");
+    private static final Component TITLE_PLACEHOLDER_TEXT = Component.translatable("instant-p2p.custom_room.title_placeholder");
+    private static final Component TITLE_APPLY_TEXT   = Component.translatable("instant-p2p.custom_room.apply_title");
+    private static final Component BACK_TEXT          = Component.translatable("instant-p2p.custom_room.back");
+    private static final Component ROOM_OPTIONS_TEXT  = Component.translatable("instant-p2p.custom_room.room_options");
+    private static final Component CHANNEL_SETTINGS_TEXT = Component.translatable("instant-p2p.channel.settings");
+    private static final Component SERVER_SETTINGS_TEXT = Component.translatable("instant-p2p.server.settings");
+    private static final Component ANTICHEAT_SETTINGS_TEXT = Component.translatable("instant-p2p.anticheat.settings");
+    private static final Component APPROVAL_GATE_TEXT = Component.translatable("instant-p2p.approval_gate");
+    private static final Component APPROVAL_GATE_TOOLTIP_TEXT = Component.translatable("instant-p2p.approval_gate_tooltip");
+    private static final Component SHARE_PACK_TEXT = Component.translatable("instant-p2p.share_pack");
+    private static final Component SHARE_PACK_TOOLTIP_TEXT = Component.translatable("instant-p2p.share_pack_tooltip");
+    *///?} else {
+    private static final Text TITLE_TEXT        = Text.translatable("instant-p2p.custom_room.title");
+    private static final Text EDIT_TITLE_TEXT    = Text.translatable("instant-p2p.custom_room.edit_title");
+    private static final Text GAME_MODE_TEXT     = Text.translatable("instant-p2p.custom_room.game_mode");
+    private static final Text MAX_PLAYERS_TEXT   = Text.translatable("instant-p2p.custom_room.max_players", MAX_PLAYERS);
+    private static final Text ALLOW_COMMANDS_TEXT = Text.translatable("instant-p2p.custom_room.allow_commands");
+    private static final Text ALLOW_COMMANDS_TOOLTIP_TEXT = Text.translatable("instant-p2p.custom_room.allow_commands_tooltip");
+    private static final Text ALLOW_BROADCAST_TEXT = Text.translatable("instant-p2p.custom_room.allow_broadcast");
+    private static final Text ALLOW_BROADCAST_TOOLTIP_TEXT = Text.translatable("instant-p2p.custom_room.allow_broadcast_tooltip");
+    private static final Text FORCE_RELAY_TEXT   = Text.translatable("instant-p2p.force_relay");
+    private static final Text FORCE_RELAY_TOOLTIP_TEXT = Text.translatable("instant-p2p.force_relay_tooltip");
+    private static final Text START_TEXT         = Text.translatable("instant-p2p.custom_room.start");
+    private static final Text RESTART_TEXT       = Text.translatable("instant-p2p.custom_room.restart");
+    private static final Text RESTART_WARNING_TEXT = Text.translatable("instant-p2p.custom_room.restart_warning");
+    private static final Text RESTART_TOOLTIP_TEXT = Text.translatable("instant-p2p.custom_room.restart_tooltip");
+    private static final Text APPLY_DISABLED_TOOLTIP_TEXT = Text.translatable("instant-p2p.custom_room.apply_disabled_tooltip");
+    private static final Text PUBLIC_TEXT        = Text.translatable("instant-p2p.custom_room.public_allow");
+    private static final Text PUBLIC_TOOLTIP_TEXT = Text.translatable("instant-p2p.custom_room.public_allow_tooltip");
+    private static final Text TITLE_PLACEHOLDER_TEXT = Text.translatable("instant-p2p.custom_room.title_placeholder");
+    private static final Text TITLE_APPLY_TEXT   = Text.translatable("instant-p2p.custom_room.apply_title");
+    private static final Text BACK_TEXT          = Text.translatable("instant-p2p.custom_room.back");
+    private static final Text ROOM_OPTIONS_TEXT  = Text.translatable("instant-p2p.custom_room.room_options");
+    private static final Text CHANNEL_SETTINGS_TEXT = Text.translatable("instant-p2p.channel.settings");
+    private static final Text SERVER_SETTINGS_TEXT = Text.translatable("instant-p2p.server.settings");
+    private static final Text ANTICHEAT_SETTINGS_TEXT = Text.translatable("instant-p2p.anticheat.settings");
+    private static final Text APPROVAL_GATE_TEXT = Text.translatable("instant-p2p.approval_gate");
+    private static final Text APPROVAL_GATE_TOOLTIP_TEXT = Text.translatable("instant-p2p.approval_gate_tooltip");
+    private static final Text SHARE_PACK_TEXT = Text.translatable("instant-p2p.share_pack");
+    private static final Text SHARE_PACK_TOOLTIP_TEXT = Text.translatable("instant-p2p.share_pack_tooltip");
+    //?}
+    private static final int INVALID_COLOR       = 0xFFFF5555;
+
+    /** 이미 켜진 방을 다시 연 경우 — 그 방의 설정을 그대로 채워서 보여준다. 방 옵션
+     * (게임모드/정원/공개 허용/제목/치트/관리 명령어/중계 강제)은 전부 위젯을 바꿔도
+     * 그 자리에서 반영되지 않고, 통합 "적용" 버튼을 눌러야만 한꺼번에 반영된다
+     * ({@link kfc.udp.client.KfcudpClient#applyRoomSettings}) — 체크박스 하나 누를
+     * 때마다 곧장 방이 공개되거나 하는 일이 없도록. 새 초대 코드가 필요할 때만
+     * 재생성 버튼. */
+    private final boolean editingActiveRoom = KfcudpClient.isRoomActive();
+
+    private final Screen parent;
+    //? if >=26.1 {
+    /*private GameType gameMode;
+    *///?} else {
+    private GameMode gameMode;
+    //?}
+    private int maxPlayers;
+    private boolean allowCheats;
+    private boolean publicRoom;
+    /** 다른 방 옵션과 마찬가지로 체크박스 자체는 그냥 이 필드만 바꾸고, 실제
+     * {@link kfc.udp.client.signaling.P2PConfig#setRelayOnly}는 적용 버튼을 눌러야
+     * (호스팅 전이면 즉시) 반영된다 — 예전엔 이 옵션만 체크하자마자 바로 나갔다. */
+    private boolean forceRelay;
+    /** forceRelay와 같은 방식 — 체크박스는 이 필드만 바꾸고, {@link kfc.udp.client.signaling.P2PConfig#setAllowBroadcast}는
+     * 적용 버튼을 눌러야(호스팅 전이면 즉시) 반영된다. */
+    private boolean allowBroadcast;
+    /** 입장 승인제(1.5~) — forceRelay 와 같은 방식(방이 켜져 있으면 적용 버튼, 아니면 즉시 저장). */
+    private boolean approvalGate;
+    private int checkboxScrollIndex = 0;
+    /** 옵션 목록 세로 스크롤바를 끌고 있는지(1.5~ — 옵션이 화면에 다 안 들어갈 때만 스크롤바가 뜬다). */
+    private boolean draggingScrollbar = false;
+    /** init()이 끝나기 전까진 위젯들의 초기값 세팅 자체가 "값이 바뀜" 콜백을 트리거해도
+     * 무시한다 — 안 그러면 화면을 열기만 해도 적용 버튼이 매번 활성 상태로 뜬다. */
+    private boolean initialized = false;
+
+    /** 하단 섹션(재생성/취소 버튼) — RoomListScreen과 마찬가지로 this.height 기준
+     * 아래에서부터 고정해 작은 화면에서도 항상 화면 안에 붙어 있게 한다. */
+    private int buttonsY, divider2Y;
+
+    //? if >=26.1 {
+    /*@Nullable private EditBox maxPlayersField;
+    @Nullable private EditBox titleField;
+    @Nullable private Button    startButton;
+    @Nullable private Button    settingsApplyButton;
+    private final List<Checkbox> optionCheckboxes = new ArrayList<>();
+    // 경고 팝업을 취소했을 때 되돌리려면 실제 위젯을 다시 만들어 갈아 끼워야 한다(체크박스는
+    // 만든 뒤엔 체크 상태를 못 바꾼다) — 그 자리를 찾으려고 따로 들고 있는다.
+    @Nullable private Checkbox allowBroadcastCheckbox;
+    *///?} else {
+    @Nullable private TextFieldWidget maxPlayersField;
+    @Nullable private TextFieldWidget titleField;
+    @Nullable private ButtonWidget    startButton;
+    @Nullable private ButtonWidget    settingsApplyButton;
+    private final List<CheckboxWidget> optionCheckboxes = new ArrayList<>();
+    // 경고 팝업을 취소했을 때 되돌리려면 실제 위젯을 다시 만들어 갈아 끼워야 한다(체크박스는
+    // 만든 뒤엔 체크 상태를 못 바꾼다) — 그 자리를 찾으려고 따로 들고 있는다.
+    @Nullable private CheckboxWidget allowBroadcastCheckbox;
+    //?}
+
+    public CustomRoomScreen(Screen parent) {
+        super(KfcudpClient.isRoomActive() ? EDIT_TITLE_TEXT : TITLE_TEXT);
+        this.parent = parent;
+        this.forceRelay = kfc.udp.client.signaling.P2PConfig.isRelayOnly();
+        // 방을 여는 순간 기다리지 않게 중계 계정을 미리 받아 둔다(이미 있으면 즉시 끝난다).
+        kfc.udp.client.signaling.MojangAuth.prefetchTurnAsync();
+        this.allowBroadcast = kfc.udp.client.signaling.P2PConfig.isAllowBroadcast();
+        this.approvalGate = kfc.udp.client.signaling.P2PConfig.isApprovalGate();
+        if (this.editingActiveRoom) {
+            // 이미 켜진 방 — 지금 실제로 적용돼 있는 값을 그대로 보여준다.
+            this.gameMode = KfcudpClient.getActiveGameMode();
+            this.maxPlayers = KfcudpClient.getActiveMaxPlayers();
+            this.allowCheats = KfcudpClient.isActiveAllowCheats();
+            this.publicRoom = KfcudpClient.isActivePublicRoom();
+        } else {
+            //? if >=26.1 {
+            /*this.gameMode = GameType.ADVENTURE;
+            *///?} else {
+            this.gameMode = GameMode.ADVENTURE;
+            //?}
+            this.maxPlayers = 8;
+            this.allowCheats = false;
+            this.publicRoom = false;
+        }
+    }
+
+    //? if >=26.1 {
+    /*@Override
+    protected void init() {
+        int cx = this.width / 2;
+        this.buttonsY = this.height - 26;
+        this.divider2Y = this.buttonsY - 14;
+
+        // 게임 모드 선택 — 호스팅 중이면 위 통합 "적용" 버튼을 눌러야 반영된다(새 초대
+        // 코드 발급 없이 핫스왑은 가능하지만, 다른 방 옵션들과 마찬가지로 즉시 반영은
+        // 아니다).
+        this.addRenderableWidget(
+                CycleButton.builder(GameType::getShortDisplayName, this.gameMode)
+                        .withValues(GameType.SURVIVAL, GameType.CREATIVE, GameType.ADVENTURE, GameType.SPECTATOR)
+                        .create(cx - 155, ROW1_Y, 150, 20, GAME_MODE_TEXT,
+                                (btn, mode) -> { this.gameMode = mode; this.refreshSettingsApplyButton(); })
+        );
+
+        // 최대 인원 입력 — 항상 꽉 찬 너비. 호스팅 중이면(editingActiveRoom) 방 제목과
+        // 함께 위쪽의 통합 "적용" 버튼을 눌러야만 반영된다(validateMaxPlayers/
+        // refreshSettingsApplyButton 참고).
+        this.maxPlayersField = new EditBox(
+                this.font, cx + 5, ROW1_Y, 150, 20, MAX_PLAYERS_TEXT);
+        this.maxPlayersField.setValue(String.valueOf(this.maxPlayers));
+        this.maxPlayersField.setResponder(this::validateMaxPlayers);
+        this.addRenderableWidget(this.maxPlayersField);
+
+        // 시작/재생성 버튼 — 호스팅 전(시작)엔 원래 자리(하단 좌측)를 그대로 쓴다.
+        // 호스팅 중(재생성)에만 화면 제목과 같은 높이(TITLE_Y 계산식 참고)의 위쪽
+        // 자리로 옮기고, 방 옵션들은 아래 통합 적용 버튼으로 넘긴다. 경고 표시는
+        // 문구 대신 짧은 기호(⚠)만 라벨에 넣고 전체 설명은 툴팁으로 옮겨서 좁은
+        // 폭에서도 안전하게 들어간다.
+        Component startLabel = this.editingActiveRoom
+                ? RESTART_TEXT.copy().append(" ").append(RESTART_WARNING_TEXT.copy().withStyle(ChatFormatting.GOLD))
+                : START_TEXT;
+        var startBuilder = Button.builder(startLabel, btn -> this.onStart());
+        if (this.editingActiveRoom) {
+            startBuilder.bounds((cx + 155) - APPLY_BUTTON_W, APPLY_BUTTON_Y, APPLY_BUTTON_W, APPLY_BUTTON_H);
+            startBuilder.tooltip(Tooltip.create(RESTART_TOOLTIP_TEXT));
+        } else {
+            startBuilder.bounds(cx - 155, this.buttonsY, 150, 20);
+        }
+        this.startButton = startBuilder.build();
+        this.addRenderableWidget(this.startButton);
+
+        // 방 닫기 — 호스팅 중에만, 화면 제목("방 설정 변경") 바로 아래 가운데. 🚫는 빨간색(1.21~ 게임 안에서 표시 확인).
+        if (this.editingActiveRoom) {
+            this.addRenderableWidget(Button.builder(
+                            Component.translatable("instant-p2p.pause.close_room").append(" ")
+                                    .append(Component.literal("🚫").withStyle(ChatFormatting.RED)),
+                            b -> KfcudpClient.closeRoomFromMenu())
+                    .bounds(cx - CLOSE_ROOM_W / 2, APPLY_BUTTON_Y + APPLY_BUTTON_H + 2, CLOSE_ROOM_W, APPLY_BUTTON_H)
+                    .build());
+        }
+
+        // 채널 설정 버튼 — 위 재생성/시작 버튼(우측 상단 자리)과 중심 기준 좌우반전된 위치(좌측 상단).
+        // RoomListScreen과 똑같은 좌표라 호스트/접속자 화면 어디서든 같은 자리에 뜬다. 채널 값은 그 화면(ChannelScreen)
+        // 안에서만 보이고, 적용하면 공개 중인 방은 바로 다시 공지된다 — 이 화면의 적용 버튼과는 무관하다.
+        this.addRenderableWidget(Button.builder(CHANNEL_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.minecraft).setScreenAndShow(new ChannelScreen(this)))
+                .bounds(cx - 155, RoomListScreen.CHANNEL_Y, APPLY_BUTTON_W, 20).build());
+
+        // 서버 설정 버튼(공식/사설) — 채널 설정 버튼 바로 아래. 공식·사설 서버는 초대 코드·공개
+        // 방 목록이 서로 안 겹치는 별개 세계라, 방을 열기 전에 상대와 같은 서버인지 맞춰야 한다.
+        this.addRenderableWidget(Button.builder(SERVER_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.minecraft).setScreenAndShow(new ServerProfileScreen(this)))
+                .bounds(cx - 155, RoomListScreen.CHANNEL_Y + 22, APPLY_BUTTON_W, 20).build());
+
+        // 안티치트 설정 버튼 — 서버 설정 버튼과 좌우 대칭(우측, 시작/재생성 버튼 바로 아래).
+        this.addRenderableWidget(Button.builder(ANTICHEAT_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.minecraft).setScreenAndShow(new AntiCheatScreen(this)))
+                .bounds((cx + 155) - APPLY_BUTTON_W, RoomListScreen.CHANNEL_Y + 22, APPLY_BUTTON_W, 20).build());
+
+        // 방 옵션 전체 통합 적용 버튼 — 게임모드/정원/공개 허용/제목/치트/관리 명령어를
+        // 한 번에 반영한다(onApplyButtonClicked/refreshSettingsApplyButton 참고).
+        // 하단 섹션에 고정, 돌아가기 버튼과 좌우로 나란히 배치한다.
+        if (this.editingActiveRoom) {
+            this.settingsApplyButton = Button.builder(TITLE_APPLY_TEXT, btn -> this.onApplyButtonClicked())
+                    .bounds(cx - 155, this.buttonsY, 150, 20)
+                    .build();
+            this.addRenderableWidget(this.settingsApplyButton);
+            this.refreshSettingsApplyButton(); // 초기 활성 여부 + 비활성 툴팁을 여기서 정한다
+        }
+
+        this.addRenderableWidget(
+                Button.builder(BACK_TEXT, btn -> this.onClose())
+                        .bounds(cx + 5, this.buttonsY, 150, 20)
+                        .build()
+        );
+
+        // 방 옵션 — 호스팅 중이면(editingActiveRoom) 아래 체크박스는 위 통합 적용
+        // 버튼을 눌러야 반영된다. 공개 허용 — 체크하면 오른쪽에 방 제목 입력란이
+        // 나타난다. 비워두면 방 열 때 무작위 제목을 대신 쓴다(onStart 참고). 정원과
+        // 마찬가지로 제목도 키 입력마다 그대로 적용하면 그때마다 공개 목록을 내렸다
+        // 올리게 돼(applyRoomSettings의 publicChanged) 트래픽 낭비가 크므로, 위 통합
+        // "적용" 버튼을 눌러야만 반영된다. 너비는 고정 — 왼쪽은 공개 허용 체크박스
+        // 라벨(영어 기준)과 안 겹치는 선에서, 오른쪽은 게임모드/정원 행과 맞춘다.
+        int titleFieldX = cx - 60;
+        int titleFieldW = (cx + 155) - titleFieldX;
+        this.titleField = new EditBox(this.font, titleFieldX, ROW3_Y, titleFieldW, 20, TITLE_PLACEHOLDER_TEXT);
+        this.titleField.setMaxLength(RoomListScreen.MAX_TITLE_LENGTH);
+        this.titleField.setHint(TITLE_PLACEHOLDER_TEXT);
+        if (this.editingActiveRoom) {
+            String activeTitle = KfcudpClient.getActiveTitle();
+            this.titleField.setValue(activeTitle != null ? activeTitle : "");
+        }
+        this.titleField.visible = this.publicRoom;
+        this.addRenderableWidget(this.titleField);
+        this.titleField.setResponder(text -> {
+            // 방 목록 칸에 들어가는 폭까지만 — 넘치면 잘라 다시 넣는다(다시 불린 응답은 폭 안이라 여기서 끝).
+            if (this.font.width(text) > RoomListScreen.TITLE_TEXT_W) {
+                this.titleField.setValue(this.font.plainSubstrByWidth(text, RoomListScreen.TITLE_TEXT_W));
+                return;
+            }
+            this.refreshSettingsApplyButton();
+        });
+
+        // Checkbox.Builder.build()의 tooltip()은 라벨이 한 줄을 넘칠 때만(overflowsRowLimit) 실제로
+        // setTooltip을 불러준다(바이트코드로 확인) — 우리 라벨은 전부 한 줄이라 빌더로는 절대 안 뜬다.
+        // build() 뒤에 Checkbox.setTooltip을 직접 불러야 라벨 길이와 무관하게 항상 붙는다.
+        Checkbox publicCheckbox = Checkbox.builder(PUBLIC_TEXT, this.font)
+                .pos(cx - 155, ROW3_Y)
+                .selected(this.publicRoom)
+                .onValueChange((cb, value) -> {
+                    // 공개로 켤 때는 정보 수집 동의부터(1.5~, PublicConsent "host") — 동의하고 돌아오면 publicConsented 가 켠다.
+                    if (value && !PublicConsent.has("host")) {
+                        this.publicRoom = false;
+                        this.titleField.visible = false;
+                        this.refreshSettingsApplyButton();
+                        PublicConsent.ask(this, "host", this::publicConsented);
+                        return;
+                    }
+                    this.publicRoom = value;
+                    this.titleField.visible = value;
+                    this.refreshSettingsApplyButton();
+                })
+                .build();
+        publicCheckbox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(PUBLIC_TOOLTIP_TEXT));
+        this.addRenderableWidget(publicCheckbox);
+
+        // 옵션 체크박스 — 치트/중계 강제/방송 허용. kick/ban/whitelist는 체크박스가 아니라 방장과 /op 받은
+        // 사람만 쓴다(P2PBanManager.requireAdminOrHost). 목록이 늘어날 걸 대비해 스크롤 영역에
+        // 담는다(repositionCheckboxes/mouseScrolled 참고).
+        this.optionCheckboxes.clear();
+        Checkbox allowCommandsCheckbox = Checkbox.builder(ALLOW_COMMANDS_TEXT, this.font)
+                .pos(cx - 155, LIST_Y)
+                .selected(this.allowCheats)
+                .onValueChange((cb, value) -> { this.allowCheats = value; this.refreshSettingsApplyButton(); })
+                .build();
+        allowCommandsCheckbox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(ALLOW_COMMANDS_TOOLTIP_TEXT));
+        this.optionCheckboxes.add(allowCommandsCheckbox);
+        Checkbox forceRelayCheckbox = Checkbox.builder(FORCE_RELAY_TEXT, this.font)
+                .pos(cx - 155, LIST_Y)
+                .selected(this.forceRelay)
+                .onValueChange((cb, value) -> {
+                    this.forceRelay = value;
+                    if (this.editingActiveRoom) {
+                        this.refreshSettingsApplyButton();
+                    } else {
+                        kfc.udp.client.signaling.P2PConfig.setRelayOnly(value);
+                    }
+                })
+                .build();
+        forceRelayCheckbox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(FORCE_RELAY_TOOLTIP_TEXT));
+        this.optionCheckboxes.add(forceRelayCheckbox);
+        this.allowBroadcastCheckbox = this.buildAllowBroadcastCheckbox(this.allowBroadcast);
+        this.optionCheckboxes.add(this.allowBroadcastCheckbox);
+        // 입장 승인제(1.5~, AdmitGate) — 새 접속자는 관전으로 시작하고 방장이 /admit 해야 들어온다.
+        Checkbox approvalGateCheckbox = Checkbox.builder(APPROVAL_GATE_TEXT, this.font)
+                .pos(cx - 155, LIST_Y)
+                .selected(this.approvalGate)
+                .onValueChange((cb, value) -> this.onApprovalGateChanged(value))
+                .build();
+        approvalGateCheckbox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(APPROVAL_GATE_TOOLTIP_TEXT));
+        this.optionCheckboxes.add(approvalGateCheckbox);
+        // 리소스팩 공유(F4.0, PackShare) — 바로 저장·적용(이미 들어온 접속자에게도 제안).
+        Checkbox sharePackCheckbox = Checkbox.builder(SHARE_PACK_TEXT, this.font)
+                .pos(cx - 155, LIST_Y)
+                .selected(kfc.udp.client.signaling.P2PConfig.isSharePack())
+                .onValueChange((cb, value) -> {
+                    kfc.udp.client.signaling.P2PConfig.setSharePack(value);
+                    kfc.udp.client.signaling.PackShare.onSettingsChanged();
+                })
+                .build();
+        sharePackCheckbox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(SHARE_PACK_TOOLTIP_TEXT));
+        this.optionCheckboxes.add(sharePackCheckbox);
+        for (Checkbox cb : this.optionCheckboxes) this.addRenderableWidget(cb);
+        this.checkboxScrollIndex = 0;
+        this.repositionCheckboxes();
+
+        this.validateMaxPlayers(this.maxPlayersField.getValue());
+        this.initialized = true;
+    }
+    *///?}
+    //? if >=1.21.11 <26.1 {
+    /*@Override
+    protected void init() {
+        int cx = this.width / 2;
+        this.buttonsY = this.height - 26;
+        this.divider2Y = this.buttonsY - 14;
+
+        // 게임 모드 선택 — 호스팅 중이면 위 통합 "적용" 버튼을 눌러야 반영된다(새 초대
+        // 코드 발급 없이 핫스왑은 가능하지만, 다른 방 옵션들과 마찬가지로 즉시 반영은
+        // 아니다).
+        this.addDrawableChild(
+                CyclingButtonWidget.builder(GameMode::getSimpleTranslatableName, this.gameMode)
+                        .values(GameMode.SURVIVAL, GameMode.CREATIVE, GameMode.ADVENTURE, GameMode.SPECTATOR)
+                        .build(cx - 155, ROW1_Y, 150, 20, GAME_MODE_TEXT,
+                                (btn, mode) -> { this.gameMode = mode; this.refreshSettingsApplyButton(); })
+        );
+
+        // 최대 인원 입력 — 항상 꽉 찬 너비. 호스팅 중이면(editingActiveRoom) 방 제목과
+        // 함께 위쪽의 통합 "적용" 버튼을 눌러야만 반영된다(validateMaxPlayers/
+        // refreshSettingsApplyButton 참고).
+        this.maxPlayersField = new TextFieldWidget(
+                this.textRenderer, cx + 5, ROW1_Y, 150, 20, MAX_PLAYERS_TEXT);
+        this.maxPlayersField.setText(String.valueOf(this.maxPlayers));
+        this.maxPlayersField.setChangedListener(this::validateMaxPlayers);
+        this.addDrawableChild(this.maxPlayersField);
+
+        // 시작/재생성 버튼 — 호스팅 전(시작)엔 원래 자리(하단 좌측)를 그대로 쓴다.
+        // 호스팅 중(재생성)에만 화면 제목과 같은 높이(TITLE_Y 계산식 참고)의 위쪽
+        // 자리로 옮기고, 방 옵션들은 아래 통합 적용 버튼으로 넘긴다. 경고 표시는
+        // 문구 대신 짧은 기호(⚠)만 라벨에 넣고 전체 설명은 툴팁으로 옮겨서 좁은
+        // 폭에서도 안전하게 들어간다.
+        Text startLabel = this.editingActiveRoom
+                ? RESTART_TEXT.copy().append(" ").append(RESTART_WARNING_TEXT.copy().formatted(Formatting.GOLD))
+                : START_TEXT;
+        var startBuilder = ButtonWidget.builder(startLabel, btn -> this.onStart());
+        if (this.editingActiveRoom) {
+            startBuilder.dimensions((cx + 155) - APPLY_BUTTON_W, APPLY_BUTTON_Y, APPLY_BUTTON_W, APPLY_BUTTON_H);
+            startBuilder.tooltip(Tooltip.of(RESTART_TOOLTIP_TEXT));
+        } else {
+            startBuilder.dimensions(cx - 155, this.buttonsY, 150, 20);
+        }
+        this.startButton = startBuilder.build();
+        this.addDrawableChild(this.startButton);
+
+        // 방 닫기 — 호스팅 중에만, 화면 제목("방 설정 변경") 바로 아래 가운데. 🚫는 빨간색(1.21~ 게임 안에서 표시 확인).
+        if (this.editingActiveRoom) {
+            this.addDrawableChild(ButtonWidget.builder(
+                            Text.translatable("instant-p2p.pause.close_room").append(" ")
+                                    .append(Text.literal("🚫").formatted(Formatting.RED)),
+                            b -> KfcudpClient.closeRoomFromMenu())
+                    .dimensions(cx - CLOSE_ROOM_W / 2, APPLY_BUTTON_Y + APPLY_BUTTON_H + 2, CLOSE_ROOM_W, APPLY_BUTTON_H)
+                    .build());
+        }
+
+        // 채널 설정 버튼 — 위 재생성/시작 버튼(우측 상단 자리)과 중심 기준 좌우반전된 위치(좌측 상단).
+        // RoomListScreen과 똑같은 좌표라 호스트/접속자 화면 어디서든 같은 자리에 뜬다. 채널 값은 그 화면(ChannelScreen)
+        // 안에서만 보이고, 적용하면 공개 중인 방은 바로 다시 공지된다 — 이 화면의 적용 버튼과는 무관하다.
+        this.addDrawableChild(ButtonWidget.builder(CHANNEL_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.client).setScreen(new ChannelScreen(this)))
+                .dimensions(cx - 155, RoomListScreen.CHANNEL_Y, APPLY_BUTTON_W, 20).build());
+
+        // 서버 설정 버튼(공식/사설) — 채널 설정 버튼 바로 아래.
+        this.addDrawableChild(ButtonWidget.builder(SERVER_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.client).setScreen(new ServerProfileScreen(this)))
+                .dimensions(cx - 155, RoomListScreen.CHANNEL_Y + 22, APPLY_BUTTON_W, 20).build());
+
+        // 안티치트 설정 버튼 — 서버 설정 버튼과 좌우 대칭(우측, 시작/재생성 버튼 바로 아래).
+        this.addDrawableChild(ButtonWidget.builder(ANTICHEAT_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.client).setScreen(new AntiCheatScreen(this)))
+                .dimensions((cx + 155) - APPLY_BUTTON_W, RoomListScreen.CHANNEL_Y + 22, APPLY_BUTTON_W, 20).build());
+
+        // 방 옵션 전체 통합 적용 버튼 — 게임모드/정원/공개 허용/제목/치트/관리 명령어를
+        // 한 번에 반영한다(onApplyButtonClicked/refreshSettingsApplyButton 참고).
+        // 하단 섹션에 고정, 돌아가기 버튼과 좌우로 나란히 배치한다.
+        if (this.editingActiveRoom) {
+            this.settingsApplyButton = ButtonWidget.builder(TITLE_APPLY_TEXT, btn -> this.onApplyButtonClicked())
+                    .dimensions(cx - 155, this.buttonsY, 150, 20)
+                    .build();
+            this.addDrawableChild(this.settingsApplyButton);
+            this.refreshSettingsApplyButton(); // 초기 활성 여부 + 비활성 툴팁을 여기서 정한다
+        }
+
+        this.addDrawableChild(
+                ButtonWidget.builder(BACK_TEXT, btn -> this.close())
+                        .dimensions(cx + 5, this.buttonsY, 150, 20)
+                        .build()
+        );
+
+        // 방 옵션 — 호스팅 중이면(editingActiveRoom) 아래 체크박스는 위 통합 적용
+        // 버튼을 눌러야 반영된다. 공개 허용 — 체크하면 오른쪽에 방 제목 입력란이
+        // 나타난다. 비워두면 방 열 때 무작위 제목을 대신 쓴다(onStart 참고). 정원과
+        // 마찬가지로 제목도 키 입력마다 그대로 적용하면 그때마다 공개 목록을 내렸다
+        // 올리게 돼(applyRoomSettings의 publicChanged) 트래픽 낭비가 크므로, 위 통합
+        // "적용" 버튼을 눌러야만 반영된다. 너비는 고정 — 왼쪽은 공개 허용 체크박스
+        // 라벨(영어 기준)과 안 겹치는 선에서, 오른쪽은 게임모드/정원 행과 맞춘다.
+        int titleFieldX = cx - 60;
+        int titleFieldW = (cx + 155) - titleFieldX;
+        this.titleField = new TextFieldWidget(this.textRenderer, titleFieldX, ROW3_Y, titleFieldW, 20, TITLE_PLACEHOLDER_TEXT);
+        this.titleField.setMaxLength(RoomListScreen.MAX_TITLE_LENGTH);
+        this.titleField.setPlaceholder(TITLE_PLACEHOLDER_TEXT);
+        if (this.editingActiveRoom) {
+            String activeTitle = KfcudpClient.getActiveTitle();
+            this.titleField.setText(activeTitle != null ? activeTitle : "");
+        }
+        this.titleField.visible = this.publicRoom;
+        this.addDrawableChild(this.titleField);
+        this.titleField.setChangedListener(text -> {
+            // 방 목록 칸에 들어가는 폭까지만 — 넘치면 잘라 다시 넣는다(다시 불린 응답은 폭 안이라 여기서 끝).
+            if (this.textRenderer.getWidth(text) > RoomListScreen.TITLE_TEXT_W) {
+                this.titleField.setText(this.textRenderer.trimToWidth(text, RoomListScreen.TITLE_TEXT_W));
+                return;
+            }
+            this.refreshSettingsApplyButton();
+        });
+
+        this.addDrawableChild(
+                CheckboxWidget.builder(PUBLIC_TEXT, this.textRenderer)
+                        .pos(cx - 155, ROW3_Y)
+                        .checked(this.publicRoom)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(PUBLIC_TOOLTIP_TEXT))
+                        .callback((cb, value) -> {
+                            // 공개로 켤 때는 정보 수집 동의부터(1.5~, PublicConsent "host") — 동의하고 돌아오면 publicConsented 가 켠다.
+                            if (value && !PublicConsent.has("host")) {
+                                this.publicRoom = false;
+                                this.titleField.visible = false;
+                                this.refreshSettingsApplyButton();
+                                PublicConsent.ask(this, "host", this::publicConsented);
+                                return;
+                            }
+                            this.publicRoom = value;
+                            this.titleField.visible = value;
+                            this.refreshSettingsApplyButton();
+                        })
+                        .build()
+        );
+
+        // 옵션 체크박스 — 치트/중계 강제/방송 허용. kick/ban/whitelist는 체크박스가 아니라 방장과 /op 받은
+        // 사람만 쓴다(P2PBanManager.requireAdminOrHost). 목록이 늘어날 걸 대비해 스크롤 영역에
+        // 담는다(repositionCheckboxes/mouseScrolled 참고).
+        this.optionCheckboxes.clear();
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(ALLOW_COMMANDS_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(this.allowCheats)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(ALLOW_COMMANDS_TOOLTIP_TEXT))
+                        .callback((cb, value) -> { this.allowCheats = value; this.refreshSettingsApplyButton(); })
+                        .build()
+        );
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(FORCE_RELAY_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(this.forceRelay)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(FORCE_RELAY_TOOLTIP_TEXT))
+                        .callback((cb, value) -> {
+                            this.forceRelay = value;
+                            if (this.editingActiveRoom) {
+                                this.refreshSettingsApplyButton();
+                            } else {
+                                kfc.udp.client.signaling.P2PConfig.setRelayOnly(value);
+                            }
+                        })
+                        .build()
+        );
+        this.allowBroadcastCheckbox = this.buildAllowBroadcastCheckbox(this.allowBroadcast);
+        this.optionCheckboxes.add(this.allowBroadcastCheckbox);
+        // 입장 승인제(1.5~, AdmitGate) — 새 접속자는 관전으로 시작하고 방장이 /admit 해야 들어온다.
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(APPROVAL_GATE_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(this.approvalGate)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(APPROVAL_GATE_TOOLTIP_TEXT))
+                        .callback((cb, value) -> this.onApprovalGateChanged(value))
+                        .build()
+        );
+        // 리소스팩 공유(F4.0, PackShare) — 바로 저장·적용(이미 들어온 접속자에게도 제안).
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(SHARE_PACK_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(kfc.udp.client.signaling.P2PConfig.isSharePack())
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(SHARE_PACK_TOOLTIP_TEXT))
+                        .callback((cb, value) -> {
+                            kfc.udp.client.signaling.P2PConfig.setSharePack(value);
+                            kfc.udp.client.signaling.PackShare.onSettingsChanged();
+                        })
+                        .build()
+        );
+        for (CheckboxWidget cb : this.optionCheckboxes) this.addDrawableChild(cb);
+        this.checkboxScrollIndex = 0;
+        this.repositionCheckboxes();
+
+        this.validateMaxPlayers(this.maxPlayersField.getText());
+        this.initialized = true;
+    }
+    *///?}
+    //? if <1.21.11 {
+    @Override
+    protected void init() {
+        int cx = this.width / 2;
+        this.buttonsY = this.height - 26;
+        this.divider2Y = this.buttonsY - 14;
+
+        // 게임 모드 선택 — 호스팅 중이면 위 통합 "적용" 버튼을 눌러야 반영된다(새 초대
+        // 코드 발급 없이 핫스왑은 가능하지만, 다른 방 옵션들과 마찬가지로 즉시 반영은
+        // 아니다).
+        this.addDrawableChild(
+                CyclingButtonWidget.builder(GameMode::getSimpleTranslatableName)
+                        .values(GameMode.SURVIVAL, GameMode.CREATIVE, GameMode.ADVENTURE, GameMode.SPECTATOR)
+                        .initially(this.gameMode)
+                        .build(cx - 155, ROW1_Y, 150, 20, GAME_MODE_TEXT,
+                                (btn, mode) -> { this.gameMode = mode; this.refreshSettingsApplyButton(); })
+        );
+
+        // 최대 인원 입력 — 항상 꽉 찬 너비. 호스팅 중이면(editingActiveRoom) 방 제목과
+        // 함께 위쪽의 통합 "적용" 버튼을 눌러야만 반영된다(validateMaxPlayers/
+        // refreshSettingsApplyButton 참고).
+        this.maxPlayersField = new TextFieldWidget(
+                this.textRenderer, cx + 5, ROW1_Y, 150, 20, MAX_PLAYERS_TEXT);
+        this.maxPlayersField.setText(String.valueOf(this.maxPlayers));
+        this.maxPlayersField.setChangedListener(this::validateMaxPlayers);
+        this.addDrawableChild(this.maxPlayersField);
+
+        // 시작/재생성 버튼 — 호스팅 전(시작)엔 원래 자리(하단 좌측)를 그대로 쓴다.
+        // 호스팅 중(재생성)에만 화면 제목과 같은 높이(TITLE_Y 계산식 참고)의 위쪽
+        // 자리로 옮기고, 방 옵션들은 아래 통합 적용 버튼으로 넘긴다. 경고 표시는
+        // 문구 대신 짧은 기호(⚠)만 라벨에 넣고 전체 설명은 툴팁으로 옮겨서 좁은
+        // 폭에서도 안전하게 들어간다.
+        Text startLabel = this.editingActiveRoom
+                ? RESTART_TEXT.copy().append(" ").append(RESTART_WARNING_TEXT.copy().formatted(Formatting.GOLD))
+                : START_TEXT;
+        var startBuilder = ButtonWidget.builder(startLabel, btn -> this.onStart());
+        if (this.editingActiveRoom) {
+            startBuilder.dimensions((cx + 155) - APPLY_BUTTON_W, APPLY_BUTTON_Y, APPLY_BUTTON_W, APPLY_BUTTON_H);
+            startBuilder.tooltip(Tooltip.of(RESTART_TOOLTIP_TEXT));
+        } else {
+            startBuilder.dimensions(cx - 155, this.buttonsY, 150, 20);
+        }
+        this.startButton = startBuilder.build();
+        this.addDrawableChild(this.startButton);
+
+        // 방 닫기 — 호스팅 중에만, 화면 제목("방 설정 변경") 바로 아래 가운데. 🚫는 빨간색(1.21~ 게임 안에서 표시 확인).
+        if (this.editingActiveRoom) {
+            this.addDrawableChild(ButtonWidget.builder(
+                            Text.translatable("instant-p2p.pause.close_room").append(" ")
+                                    .append(Text.literal("🚫").formatted(Formatting.RED)),
+                            b -> KfcudpClient.closeRoomFromMenu())
+                    .dimensions(cx - CLOSE_ROOM_W / 2, APPLY_BUTTON_Y + APPLY_BUTTON_H + 2, CLOSE_ROOM_W, APPLY_BUTTON_H)
+                    .build());
+        }
+
+        // 채널 설정 버튼 — 위 재생성/시작 버튼(우측 상단 자리)과 중심 기준 좌우반전된 위치(좌측 상단).
+        // RoomListScreen과 똑같은 좌표라 호스트/접속자 화면 어디서든 같은 자리에 뜬다. 채널 값은 그 화면(ChannelScreen)
+        // 안에서만 보이고, 적용하면 공개 중인 방은 바로 다시 공지된다 — 이 화면의 적용 버튼과는 무관하다.
+        this.addDrawableChild(ButtonWidget.builder(CHANNEL_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.client).setScreen(new ChannelScreen(this)))
+                .dimensions(cx - 155, RoomListScreen.CHANNEL_Y, APPLY_BUTTON_W, 20).build());
+
+        // 서버 설정 버튼(공식/사설) — 채널 설정 버튼 바로 아래.
+        this.addDrawableChild(ButtonWidget.builder(SERVER_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.client).setScreen(new ServerProfileScreen(this)))
+                .dimensions(cx - 155, RoomListScreen.CHANNEL_Y + 22, APPLY_BUTTON_W, 20).build());
+
+        // 안티치트 설정 버튼 — 서버 설정 버튼과 좌우 대칭(우측, 시작/재생성 버튼 바로 아래).
+        this.addDrawableChild(ButtonWidget.builder(ANTICHEAT_SETTINGS_TEXT, b ->
+                        Objects.requireNonNull(this.client).setScreen(new AntiCheatScreen(this)))
+                .dimensions((cx + 155) - APPLY_BUTTON_W, RoomListScreen.CHANNEL_Y + 22, APPLY_BUTTON_W, 20).build());
+
+        // 방 옵션 전체 통합 적용 버튼 — 게임모드/정원/공개 허용/제목/치트/관리 명령어를
+        // 한 번에 반영한다(onApplyButtonClicked/refreshSettingsApplyButton 참고).
+        // 하단 섹션에 고정, 돌아가기 버튼과 좌우로 나란히 배치한다.
+        if (this.editingActiveRoom) {
+            this.settingsApplyButton = ButtonWidget.builder(TITLE_APPLY_TEXT, btn -> this.onApplyButtonClicked())
+                    .dimensions(cx - 155, this.buttonsY, 150, 20)
+                    .build();
+            this.addDrawableChild(this.settingsApplyButton);
+            this.refreshSettingsApplyButton(); // 초기 활성 여부 + 비활성 툴팁을 여기서 정한다
+        }
+
+        this.addDrawableChild(
+                ButtonWidget.builder(BACK_TEXT, btn -> this.close())
+                        .dimensions(cx + 5, this.buttonsY, 150, 20)
+                        .build()
+        );
+
+        // 방 옵션 — 호스팅 중이면(editingActiveRoom) 아래 체크박스는 위 통합 적용
+        // 버튼을 눌러야 반영된다. 공개 허용 — 체크하면 오른쪽에 방 제목 입력란이
+        // 나타난다. 비워두면 방 열 때 무작위 제목을 대신 쓴다(onStart 참고). 정원과
+        // 마찬가지로 제목도 키 입력마다 그대로 적용하면 그때마다 공개 목록을 내렸다
+        // 올리게 돼(applyRoomSettings의 publicChanged) 트래픽 낭비가 크므로, 위 통합
+        // "적용" 버튼을 눌러야만 반영된다. 너비는 고정 — 왼쪽은 공개 허용 체크박스
+        // 라벨(영어 기준)과 안 겹치는 선에서, 오른쪽은 게임모드/정원 행과 맞춘다.
+        int titleFieldX = cx - 60;
+        int titleFieldW = (cx + 155) - titleFieldX;
+        this.titleField = new TextFieldWidget(this.textRenderer, titleFieldX, ROW3_Y, titleFieldW, 20, TITLE_PLACEHOLDER_TEXT);
+        this.titleField.setMaxLength(RoomListScreen.MAX_TITLE_LENGTH);
+        this.titleField.setPlaceholder(TITLE_PLACEHOLDER_TEXT);
+        if (this.editingActiveRoom) {
+            String activeTitle = KfcudpClient.getActiveTitle();
+            this.titleField.setText(activeTitle != null ? activeTitle : "");
+        }
+        this.titleField.visible = this.publicRoom;
+        this.addDrawableChild(this.titleField);
+        this.titleField.setChangedListener(text -> {
+            // 방 목록 칸에 들어가는 폭까지만 — 넘치면 잘라 다시 넣는다(다시 불린 응답은 폭 안이라 여기서 끝).
+            if (this.textRenderer.getWidth(text) > RoomListScreen.TITLE_TEXT_W) {
+                this.titleField.setText(this.textRenderer.trimToWidth(text, RoomListScreen.TITLE_TEXT_W));
+                return;
+            }
+            this.refreshSettingsApplyButton();
+        });
+
+        this.addDrawableChild(
+                CheckboxWidget.builder(PUBLIC_TEXT, this.textRenderer)
+                        .pos(cx - 155, ROW3_Y)
+                        .checked(this.publicRoom)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(PUBLIC_TOOLTIP_TEXT))
+                        .callback((cb, value) -> {
+                            // 공개로 켤 때는 정보 수집 동의부터(1.5~, PublicConsent "host") — 동의하고 돌아오면 publicConsented 가 켠다.
+                            if (value && !PublicConsent.has("host")) {
+                                this.publicRoom = false;
+                                this.titleField.visible = false;
+                                this.refreshSettingsApplyButton();
+                                PublicConsent.ask(this, "host", this::publicConsented);
+                                return;
+                            }
+                            this.publicRoom = value;
+                            this.titleField.visible = value;
+                            this.refreshSettingsApplyButton();
+                        })
+                        .build()
+        );
+
+        // 옵션 체크박스 — 치트/중계 강제/방송 허용. kick/ban/whitelist는 체크박스가 아니라 방장과 /op 받은
+        // 사람만 쓴다(P2PBanManager.requireAdminOrHost). 목록이 늘어날 걸 대비해 스크롤 영역에
+        // 담는다(repositionCheckboxes/mouseScrolled 참고).
+        this.optionCheckboxes.clear();
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(ALLOW_COMMANDS_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(this.allowCheats)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(ALLOW_COMMANDS_TOOLTIP_TEXT))
+                        .callback((cb, value) -> { this.allowCheats = value; this.refreshSettingsApplyButton(); })
+                        .build()
+        );
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(FORCE_RELAY_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(this.forceRelay)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(FORCE_RELAY_TOOLTIP_TEXT))
+                        .callback((cb, value) -> {
+                            this.forceRelay = value;
+                            if (this.editingActiveRoom) {
+                                this.refreshSettingsApplyButton();
+                            } else {
+                                kfc.udp.client.signaling.P2PConfig.setRelayOnly(value);
+                            }
+                        })
+                        .build()
+        );
+        this.allowBroadcastCheckbox = this.buildAllowBroadcastCheckbox(this.allowBroadcast);
+        this.optionCheckboxes.add(this.allowBroadcastCheckbox);
+        // 입장 승인제(1.5~, AdmitGate) — 새 접속자는 관전으로 시작하고 방장이 /admit 해야 들어온다.
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(APPROVAL_GATE_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(this.approvalGate)
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(APPROVAL_GATE_TOOLTIP_TEXT))
+                        .callback((cb, value) -> this.onApprovalGateChanged(value))
+                        .build()
+        );
+        // 리소스팩 공유(F4.0, PackShare) — 바로 저장·적용(이미 들어온 접속자에게도 제안).
+        this.optionCheckboxes.add(
+                CheckboxWidget.builder(SHARE_PACK_TEXT, this.textRenderer)
+                        .pos(cx - 155, LIST_Y)
+                        .checked(kfc.udp.client.signaling.P2PConfig.isSharePack())
+                        .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(SHARE_PACK_TOOLTIP_TEXT))
+                        .callback((cb, value) -> {
+                            kfc.udp.client.signaling.P2PConfig.setSharePack(value);
+                            kfc.udp.client.signaling.PackShare.onSettingsChanged();
+                        })
+                        .build()
+        );
+        for (CheckboxWidget cb : this.optionCheckboxes) this.addDrawableChild(cb);
+        this.checkboxScrollIndex = 0;
+        this.repositionCheckboxes();
+
+        this.validateMaxPlayers(this.maxPlayersField.getText());
+        this.initialized = true;
+    }
+    //?}
+
+    /**
+     * 한 번에 보이는 옵션 줄 수 — 화면 높이에 맞춰(1.5~) 아래 구분선까지 들어가는 만큼(최소 1줄). 예전엔
+     * {@link #VISIBLE_ROWS}(3)줄 고정이라 옵션이 늘자(입장 승인제) 큰 화면에서도 휠을 굴려야 했다.
+     */
+    private int visibleRows() {
+        return Math.max(1, Math.min(this.optionCheckboxes.size(), (this.divider2Y - LIST_Y) / ROW_H));
+    }
+
+    private boolean hasScrollbar() {
+        return this.optionCheckboxes.size() > this.visibleRows();
+    }
+
+    private int sbX() {
+        return this.width / 2 + 155 - 6;
+    }
+
+    private int sbH() {
+        return this.visibleRows() * ROW_H - 2;
+    }
+
+    /** 스크롤바 손잡이 {y, 높이}. */
+    private int[] sbThumb() {
+        int total = this.optionCheckboxes.size(), vis = this.visibleRows();
+        int h = Math.max(10, this.sbH() * vis / total);
+        int maxIdx = Math.max(1, total - vis);
+        return new int[]{LIST_Y + (this.sbH() - h) * this.checkboxScrollIndex / maxIdx, h};
+    }
+
+    private void scrollToTrackY(double mouseY) {
+        int maxIdx = this.optionCheckboxes.size() - this.visibleRows();
+        if (maxIdx <= 0) return;
+        int h = this.sbThumb()[1];
+        double rel = (mouseY - LIST_Y - h / 2.0) / (this.sbH() - h);
+        int idx = Math.max(0, Math.min(maxIdx, (int) Math.round(rel * maxIdx)));
+        if (idx != this.checkboxScrollIndex) {
+            this.checkboxScrollIndex = idx;
+            this.repositionCheckboxes();
+        }
+    }
+
+    private boolean isOnScrollbarTrack(double mouseX, double mouseY) {
+        return this.hasScrollbar() && mouseX >= this.sbX() && mouseX < this.sbX() + 6
+                && mouseY >= LIST_Y && mouseY < LIST_Y + this.sbH();
+    }
+
+    /** scrollIndex에 맞춰 보이는 {@link #visibleRows}개만 Y를 배치하고 나머지는 숨긴다. */
+    private void repositionCheckboxes() {
+        this.checkboxScrollIndex = Math.max(0, Math.min(this.checkboxScrollIndex, this.optionCheckboxes.size() - this.visibleRows()));
+        for (int i = 0; i < this.optionCheckboxes.size(); i++) {
+            var cb = this.optionCheckboxes.get(i);
+            int rel = i - this.checkboxScrollIndex;
+            boolean shown = rel >= 0 && rel < this.visibleRows();
+            cb.visible = shown;
+            if (shown) cb.setY(LIST_Y + rel * ROW_H);
+        }
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        // 커서가 중간 섹션(방 옵션) 안에 있을 때만 체크박스 목록을 스크롤한다 —
+        // 그 밖(상단 게임모드/정원, 하단 재생성/취소)에서 휠을 굴렸는데 안 보이는
+        // 체크박스가 넘어가버리는 건 직관적이지 않다.
+        if (mouseY < DIVIDER1_Y || mouseY > this.divider2Y)
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        int maxIndex = Math.max(0, this.optionCheckboxes.size() - this.visibleRows());
+        if (maxIndex <= 0) return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        int newIndex = this.checkboxScrollIndex - (int) Math.signum(verticalAmount);
+        newIndex = Math.max(0, Math.min(maxIndex, newIndex));
+        if (newIndex != this.checkboxScrollIndex) {
+            this.checkboxScrollIndex = newIndex;
+            this.repositionCheckboxes();
+        }
+        return true;
+    }
+
+    // 스크롤바 끌기 — 마우스 입력 시그니처가 버전마다 달라 BlockedPlayersScreen 과 같은 독립 3분기.
+    //? if >=26.1 {
+    /*@Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent click, boolean doubleClick) {
+        if (click.button() == 0 && this.isOnScrollbarTrack(click.x(), click.y())) {
+            this.draggingScrollbar = true;
+            this.scrollToTrackY(click.y());
+            return true;
+        }
+        return super.mouseClicked(click, doubleClick);
+    }
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent click, double deltaX, double deltaY) {
+        if (this.draggingScrollbar) {
+            this.scrollToTrackY(click.y());
+            return true;
+        }
+        return super.mouseDragged(click, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent click) {
+        if (this.draggingScrollbar) {
+            this.draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(click);
+    }
+    *///?}
+    //? if >=1.21.9 <26.1 {
+    /*@Override
+    public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        if (click.button() == 0 && this.isOnScrollbarTrack(click.x(), click.y())) {
+            this.draggingScrollbar = true;
+            this.scrollToTrackY(click.y());
+            return true;
+        }
+        return super.mouseClicked(click, doubleClick);
+    }
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.gui.Click click, double deltaX, double deltaY) {
+        if (this.draggingScrollbar) {
+            this.scrollToTrackY(click.y());
+            return true;
+        }
+        return super.mouseDragged(click, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.gui.Click click) {
+        if (this.draggingScrollbar) {
+            this.draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(click);
+    }
+    *///?}
+    //? if <1.21.9 {
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && this.isOnScrollbarTrack(mouseX, mouseY)) {
+            this.draggingScrollbar = true;
+            this.scrollToTrackY(mouseY);
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (this.draggingScrollbar) {
+            this.scrollToTrackY(mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (this.draggingScrollbar) {
+            this.draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+    //?}
+
+    private void onApprovalGateChanged(boolean value) {
+        this.approvalGate = value;
+        if (this.editingActiveRoom) {
+            this.refreshSettingsApplyButton();
+        } else {
+            kfc.udp.client.signaling.P2PConfig.setApprovalGate(value);
+        }
+    }
+
+    /** 공개 방 동의를 마치고 돌아왔다 — 공개를 켠 채로 화면을 다시 만든다. */
+    private void publicConsented() {
+        this.publicRoom = true;
+        //? if >=26.1 {
+        /*this.rebuildWidgets();
+        *///?} else {
+        this.clearAndInit();
+        //?}
+    }
+
+    private void validateMaxPlayers(String text) {
+        try {
+            int v = Integer.parseInt(text.trim());
+            if (v >= MIN_PLAYERS && v <= MAX_PLAYERS) {
+                this.maxPlayers = v;
+                if (this.maxPlayersField != null)
+                    //? if >=26.1 {
+                    /*this.maxPlayersField.setTextColor(0xFFFFFFFF);
+                    *///?} else {
+                    this.maxPlayersField.setEditableColor(0xFFFFFFFF);
+                    //?}
+                if (this.startButton != null)
+                    this.startButton.active = true;
+                this.refreshSettingsApplyButton();
+            } else {
+                if (this.maxPlayersField != null)
+                    //? if >=26.1 {
+                    /*this.maxPlayersField.setTextColor(INVALID_COLOR);
+                    *///?} else {
+                    this.maxPlayersField.setEditableColor(INVALID_COLOR);
+                    //?}
+                if (this.startButton != null)
+                    this.startButton.active = false;
+                if (this.settingsApplyButton != null)
+                    this.settingsApplyButton.active = false;
+            }
+        } catch (NumberFormatException e) {
+            if (this.maxPlayersField != null)
+                //? if >=26.1 {
+                /*this.maxPlayersField.setTextColor(INVALID_COLOR);
+                *///?} else {
+                this.maxPlayersField.setEditableColor(INVALID_COLOR);
+                //?}
+            if (this.startButton != null)
+                this.startButton.active = false;
+            if (this.settingsApplyButton != null)
+                this.settingsApplyButton.active = false;
+        }
+    }
+
+    /** 방송 허용 체크박스를 만든다(초기 배치용 selected=this.allowBroadcast와, 경고 팝업 취소 시
+     * 되돌리는 rebuildAllowBroadcastCheckbox의 selected=false/true 양쪽에서 같이 쓴다) — 빌더로
+     * 초기값을 넣는 건 onValueChange를 다시 불러일으키지 않으니 여기서 팝업 걱정은 안 해도 된다. */
+    //? if >=26.1 {
+    /*private Checkbox buildAllowBroadcastCheckbox(boolean selected) {
+        Checkbox checkbox = Checkbox.builder(ALLOW_BROADCAST_TEXT, this.font)
+                .pos(this.width / 2 - 155, LIST_Y)
+                .selected(selected)
+                .onValueChange((cb, value) -> this.onAllowBroadcastChanged(value))
+                .build();
+        checkbox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(ALLOW_BROADCAST_TOOLTIP_TEXT));
+        return checkbox;
+    }
+    *///?} else {
+    private CheckboxWidget buildAllowBroadcastCheckbox(boolean selected) {
+        return CheckboxWidget.builder(ALLOW_BROADCAST_TEXT, this.textRenderer)
+                .pos(this.width / 2 - 155, LIST_Y)
+                .checked(selected)
+                .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(ALLOW_BROADCAST_TOOLTIP_TEXT))
+                .callback((cb, value) -> this.onAllowBroadcastChanged(value))
+                .build();
+    }
+    //?}
+
+    /** 체크할 때마다 매번 호출된다(체크 해제는 그냥 바로 반영) — 켜는 쪽만 등급 권한 경고가
+     * 필요하다. "다시 보지 않기"로 이미 넘긴 적이 있으면 팝업 없이 바로 켠다. */
+    private void onAllowBroadcastChanged(boolean value) {
+        if (value && !kfc.udp.client.signaling.P2PConfig.isStreamerProtectionWarningDismissed()) {
+            this.showAllowBroadcastWarning();
+        } else {
+            this.applyAllowBroadcast(value);
+        }
+    }
+
+    private void applyAllowBroadcast(boolean value) {
+        this.allowBroadcast = value;
+        if (this.editingActiveRoom) {
+            this.refreshSettingsApplyButton();
+        } else {
+            kfc.udp.client.signaling.P2PConfig.setAllowBroadcast(value);
+        }
+    }
+
+    /** 경고 팝업 — 취소(Esc/취소 버튼)하면 SafetyWarningScreen이 그냥 이 화면(parent)으로
+     * 돌아가고, 그 복귀가 init()을 다시 돌려 체크박스가 (이 값을 아직 안 바꿨으니) 저절로
+     * 해제된 채로 다시 그려진다 — 별도 되돌리기 코드가 필요 없다. 확인(계속하기)했을 때만
+     * confirmAllowBroadcast가 불려 실제로 켜고, 그 시점엔 이미 한 번 다시 그려진 체크박스를
+     * 한 번 더 갈아 끼워 체크 상태로 맞춘다(rebuildAllowBroadcastCheckbox 참고). */
+    //? if >=26.1 {
+    /*private void showAllowBroadcastWarning() {
+        assert this.minecraft != null;
+        this.minecraft.setScreenAndShow(new SafetyWarningScreen(this,
+                "instant-p2p.streamer_protection.heading", "instant-p2p.streamer_protection.message",
+                0xFF55FFFF, 0xFF002020,
+                kfc.udp.client.signaling.P2PConfig::setStreamerProtectionWarningDismissed,
+                this::confirmAllowBroadcast));
+    }
+    *///?} else {
+    private void showAllowBroadcastWarning() {
+        assert this.client != null;
+        this.client.setScreen(new SafetyWarningScreen(this,
+                "instant-p2p.streamer_protection.heading", "instant-p2p.streamer_protection.message",
+                0xFF55FFFF, 0xFF002020,
+                kfc.udp.client.signaling.P2PConfig::setStreamerProtectionWarningDismissed,
+                this::confirmAllowBroadcast));
+    }
+    //?}
+
+    private void confirmAllowBroadcast() {
+        this.applyAllowBroadcast(true);
+        this.rebuildAllowBroadcastCheckbox(true);
+    }
+
+    /** 바닐라 체크박스는 만든 뒤엔 체크 상태를 못 바꾸는 위젯이라, 같은 자리에 새로 만든
+     * 위젯을 갈아 끼우는 게 유일한 방법이다(필드 doc 참고). */
+    //? if >=26.1 {
+    /*private void rebuildAllowBroadcastCheckbox(boolean selected) {
+        int idx = this.optionCheckboxes.indexOf(this.allowBroadcastCheckbox);
+        if (idx < 0) return;
+        this.removeWidget(this.allowBroadcastCheckbox);
+        this.allowBroadcastCheckbox = this.buildAllowBroadcastCheckbox(selected);
+        this.optionCheckboxes.set(idx, this.allowBroadcastCheckbox);
+        this.addRenderableWidget(this.allowBroadcastCheckbox);
+        this.repositionCheckboxes();
+    }
+    *///?} else {
+    private void rebuildAllowBroadcastCheckbox(boolean selected) {
+        int idx = this.optionCheckboxes.indexOf(this.allowBroadcastCheckbox);
+        if (idx < 0) return;
+        this.remove(this.allowBroadcastCheckbox);
+        this.allowBroadcastCheckbox = this.buildAllowBroadcastCheckbox(selected);
+        this.optionCheckboxes.set(idx, this.allowBroadcastCheckbox);
+        this.addDrawableChild(this.allowBroadcastCheckbox);
+        this.repositionCheckboxes();
+    }
+    //?}
+
+    /** Start 버튼 — 이미 켜진 방이어도 항상 방 재시작(새 초대 코드 발급). 방송 허용 경고는 이제
+     * 체크박스를 켜는 순간 뜨므로(buildAllowBroadcastCheckbox 참고) 여기선 신경 쓸 필요 없다. */
+    private void onStart() {
+        //? if >=26.1 {
+        /*assert this.minecraft != null;
+        String title = this.publicRoom ? this.titleField.getValue().trim() : null;
+        KfcudpClient.startCustomRoom(this.minecraft, this.gameMode, this.maxPlayers,
+                this.allowCheats, this.publicRoom, title);
+        *///?} else {
+        assert this.client != null;
+        String title = this.publicRoom ? this.titleField.getText().trim() : null;
+        KfcudpClient.startCustomRoom(this.client, this.gameMode, this.maxPlayers,
+                this.allowCheats, this.publicRoom, title);
+        //?}
+    }
+
+    /** 통합 "적용" 버튼의 클릭 핸들러 — 이미 켜진 방(editingActiveRoom)일 때만 존재하는
+     * 버튼이다. 게임모드/정원/공개 허용/제목/치트/관리 명령어/중계 강제를 한꺼번에
+     * 반영한다. 체크박스나 입력란을 아무리 만져도 여기 눌러야만 실제로 나간다 —
+     * 그래야 예를 들어 "공개 허용"을 체크하는 순간 곧장 방이 공개되는 일 없이,
+     * 제목까지 다 정한 뒤 한 번에 공개할 수 있다. */
+    private void onApplyButtonClicked() {
+        if (!this.editingActiveRoom) return;
+        //? if >=26.1 {
+        /*assert this.minecraft != null;
+        String title = this.publicRoom ? this.titleField.getValue().trim() : null;
+        boolean announced = KfcudpClient.applyRoomSettings(this.minecraft, this.gameMode, this.maxPlayers,
+                this.allowCheats, this.publicRoom, title, this.allowBroadcast);
+        // 제목을 비워둔 채 공개하면 applyRoomSettings가 "Room - 코드"를 대신 지어
+        // 붙인다 — 화면 입력란은 여전히 빈 채로 남으므로, 그대로 두면 입력란(빈 값)과
+        // 실제 활성 제목(자동 생성값)이 영원히 안 맞아 적용 버튼이 계속 활성 상태로
+        // 고정돼 버린다. 실제로 적용된 값으로 입력란을 맞춰준다.
+        if (this.publicRoom) this.titleField.setValue(KfcudpClient.getActiveTitle());
+        // 중계 강제도 다른 옵션과 마찬가지로 여기서만 실제로 반영한다. 이미 직결로
+        // 붙어있는 접속자를 강제로 끊어 재접속시키는 건 하지 않는다 — 그 접속자는
+        // 다음에 새로 접속할 때부터 이 값을 적용받는다.
+        // 중계 강제만 여기서 반영한다(방송 허용은 applyRoomSettings 안에서 방 설정과 함께 처리 —
+        // 방송 허용 여부도 방송 필터에 실리는 공개 정보라 다른 방 옵션들과 같은 재공지·변경 로그
+        // 경로를 타야 한다).
+        kfc.udp.client.signaling.P2PConfig.setRelayOnly(this.forceRelay);
+        *///?} else {
+        assert this.client != null;
+        String title = this.publicRoom ? this.titleField.getText().trim() : null;
+        boolean announced = KfcudpClient.applyRoomSettings(this.client, this.gameMode, this.maxPlayers,
+                this.allowCheats, this.publicRoom, title, this.allowBroadcast);
+        // 제목을 비워둔 채 공개하면 applyRoomSettings가 "Room - 코드"를 대신 지어
+        // 붙인다 — 화면 입력란은 여전히 빈 채로 남으므로, 그대로 두면 입력란(빈 값)과
+        // 실제 활성 제목(자동 생성값)이 영원히 안 맞아 적용 버튼이 계속 활성 상태로
+        // 고정돼 버린다. 실제로 적용된 값으로 입력란을 맞춰준다.
+        if (this.publicRoom) this.titleField.setText(KfcudpClient.getActiveTitle());
+        // 중계 강제도 다른 옵션과 마찬가지로 여기서만 실제로 반영한다. 이미 직결로
+        // 붙어있는 접속자를 강제로 끊어 재접속시키는 건 하지 않는다 — 그 접속자는
+        // 다음에 새로 접속할 때부터 이 값을 적용받는다.
+        // 중계 강제만 여기서 반영한다(방송 허용은 applyRoomSettings 안에서 방 설정과 함께 처리 —
+        // 방송 허용 여부도 방송 필터에 실리는 공개 정보라 다른 방 옵션들과 같은 재공지·변경 로그
+        // 경로를 타야 한다).
+        kfc.udp.client.signaling.P2PConfig.setRelayOnly(this.forceRelay);
+        //?}
+        // 입장 승인제도 여기서만 반영한다 — 바꾼 설정(공개 정보 포함)을 랑데부 서버에도 다시 올린다(1.5~).
+        kfc.udp.client.signaling.P2PConfig.setApprovalGate(this.approvalGate);
+        kfc.udp.client.quic.QuicBridge.roomInfoChanged();
+        // 적용 결과는 채팅으로 알리고, 초대코드 재생성처럼 곧장 게임 화면으로 돌아간다.
+        // 방 전원에게 바뀐 설정을 알렸으면(applyRoomSettings) 방장에게 "적용 완료"를 또 띄우지 않는다.
+        //? if >=26.1 {
+        /*if (!announced && this.minecraft.player != null) {
+            this.minecraft.player.sendSystemMessage(Component.translatable("instant-p2p.msg.settings_applied"));
+        }
+        this.minecraft.setScreenAndShow(null);
+        this.minecraft.mouseHandler.grabMouse();
+        *///?} else {
+        if (!announced && this.client.player != null) {
+            this.client.player.sendMessage(Text.translatable("instant-p2p.msg.settings_applied"), false);
+        }
+        this.client.setScreen(null);
+        this.client.mouse.lockCursor();
+        //?}
+    }
+
+    /** 방 옵션 중 하나라도 지금 활성값과 다르면 통합 적용 버튼을 활성화한다. */
+    private void refreshSettingsApplyButton() {
+        if (this.settingsApplyButton == null) return;
+        boolean changed = this.gameMode != KfcudpClient.getActiveGameMode()
+                || this.maxPlayers != KfcudpClient.getActiveMaxPlayers()
+                || this.allowCheats != KfcudpClient.isActiveAllowCheats()
+                || this.publicRoom != KfcudpClient.isActivePublicRoom()
+                || this.forceRelay != kfc.udp.client.signaling.P2PConfig.isRelayOnly()
+                || this.allowBroadcast != kfc.udp.client.signaling.P2PConfig.isAllowBroadcast()
+                || this.approvalGate != kfc.udp.client.signaling.P2PConfig.isApprovalGate();
+        // titleField는 이 메서드를 처음 부르는 init 시점(적용 버튼 직후)엔 아직 안 만들어져 있다 —
+        // null 검사 없이 읽어서 init이 중간에 터지고 화면 위젯이 통째로 사라진 적이 있다. 그 시점엔
+        // 어차피 입력란이 활성 제목 그대로라 비교할 게 없다.
+        //? if >=26.1 {
+        /*if (!changed && this.publicRoom && this.titleField != null) {
+            changed = !this.titleField.getValue().trim().equals(KfcudpClient.getActiveTitle());
+        }
+        *///?} else {
+        if (!changed && this.publicRoom && this.titleField != null) {
+            changed = !this.titleField.getText().trim().equals(KfcudpClient.getActiveTitle());
+        }
+        //?}
+        this.settingsApplyButton.active = changed;
+        // 꺼져 있으면 왜 꺼졌는지 알려준다 — 채널만 바꾼 사람이 "적용이 안 된다"고 읽던 자리다
+        // (채널은 ChannelScreen에서 완료를 누르는 순간 이미 반영되므로 여기 남을 변경이 없다).
+        //? if >=26.1 {
+        /*this.settingsApplyButton.setTooltip(changed ? null
+                : net.minecraft.client.gui.components.Tooltip.create(APPLY_DISABLED_TOOLTIP_TEXT));
+        *///?} else {
+        this.settingsApplyButton.setTooltip(changed ? null
+                : net.minecraft.client.gui.tooltip.Tooltip.of(APPLY_DISABLED_TOOLTIP_TEXT));
+        //?}
+    }
+
+    //? if >=26.1 {
+    /*@Override
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+        super.extractRenderState(context, mouseX, mouseY, deltaTicks);
+        int cx = this.width / 2;
+
+        context.centeredText(this.font, this.title, cx, TITLE_Y, 0xFFFFFFFF);
+
+        context.centeredText(this.font, GAME_MODE_TEXT,  cx - 80, ROW1_Y - 12, 0xFFA0A0A0);
+        context.centeredText(this.font, MAX_PLAYERS_TEXT, cx + 80, ROW1_Y - 12, 0xFFA0A0A0);
+        context.fill(0, DIVIDER1_Y, this.width, DIVIDER1_Y + 1, DIVIDER_COLOR);
+        context.fill(0, DIVIDER1_Y + 1, this.width, this.divider2Y, MIDDLE_SECTION_BG);
+        context.text(this.font, ROOM_OPTIONS_TEXT, cx - 155, ROW3_Y - 12, 0xFFA0A0A0);
+        context.fill(0, this.divider2Y, this.width, this.divider2Y + 1, DIVIDER_COLOR);
+        if (this.hasScrollbar()) {
+            RoomListScreen.drawSprite(context, "widget/scroller_background", this.sbX(), LIST_Y, 6, this.sbH());
+            int[] t = this.sbThumb();
+            RoomListScreen.drawSprite(context, "widget/scroller", this.sbX(), t[0], 6, t[1]);
+        }
+    }
+    *///?} else {
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+        super.render(context, mouseX, mouseY, deltaTicks);
+        int cx = this.width / 2;
+
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, cx, TITLE_Y, 0xFFFFFFFF);
+
+        context.drawCenteredTextWithShadow(this.textRenderer, GAME_MODE_TEXT,  cx - 80, ROW1_Y - 12, 0xFFA0A0A0);
+        context.drawCenteredTextWithShadow(this.textRenderer, MAX_PLAYERS_TEXT, cx + 80, ROW1_Y - 12, 0xFFA0A0A0);
+        context.fill(0, DIVIDER1_Y, this.width, DIVIDER1_Y + 1, DIVIDER_COLOR);
+        context.fill(0, DIVIDER1_Y + 1, this.width, this.divider2Y, MIDDLE_SECTION_BG);
+        context.drawTextWithShadow(this.textRenderer, ROOM_OPTIONS_TEXT, cx - 155, ROW3_Y - 12, 0xFFA0A0A0);
+        context.fill(0, this.divider2Y, this.width, this.divider2Y + 1, DIVIDER_COLOR);
+        if (this.hasScrollbar()) {
+            RoomListScreen.drawSprite(context, "widget/scroller_background", this.sbX(), LIST_Y, 6, this.sbH());
+            int[] t = this.sbThumb();
+            RoomListScreen.drawSprite(context, "widget/scroller", this.sbX(), t[0], 6, t[1]);
+        }
+    }
+    //?}
+
+    //? if >=26.1 {
+    /*@Override
+    public void onClose() {
+        Objects.requireNonNull(this.minecraft).setScreenAndShow(this.parent);
+    }
+    *///?} else {
+    @Override
+    public void close() {
+        Objects.requireNonNull(this.client).setScreen(this.parent);
+    }
+    //?}
+}

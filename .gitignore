@@ -1,0 +1,60 @@
+# gradle
+
+.gradle/
+build/
+out/
+classes/
+gradle.*
+!gradle.properties
+*.zip
+kartriderpack*
+*.md
+!README.md
+!THIRD_PARTY_NOTICES.md
+bin
+.claude/
+signaling thing/
+
+# eclipse
+
+*.launch
+
+# idea
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# vscode
+
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+
+# macos
+
+*.DS_Store
+
+# fabric
+
+run/
+
+# stonecutter — 버전별 생성 소스 + buildAllVersions 산출물 모음
+versions/
+
+# java
+
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+
+# 패킷 캡쳐 — 공인 IP·방 코드가 들어 있다
+wireshark/
+
+# R8은 tools/shrink-kwik.py가 필요할 때 받아 온다(17MB)
+tools/r8/
+*-kwik-mapping.txt

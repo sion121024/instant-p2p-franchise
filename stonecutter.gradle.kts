@@ -1,0 +1,101 @@
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
+
+plugins {
+    id("dev.kikugie.stonecutter")
+}
+
+stonecutter active "1.21.5"
+
+/**
+ * 각 버전 서브프로젝트가 만든 최종 jar 산출물을 build/per-version/ 으로 모은다(통합 jar 재료 — mergeJars).
+ * <p>
+ * build/libs/를 뒤져서 "*.jar면 다 복사"하던 예전 방식은 Gradle이 archivesName이나
+ * mod 버전을 바꿔도 이전 산출물을 build/libs/에서 자동으로 안 지우는 탓에, 이름
+ * (kfcudp- vs instant-p2p-)이든 버전(1.0.11 vs 1.0.12)이든 뭔가 바뀔 때마다 옛
+ * 산출물과 새 산출물이 같이 쌓였다. 최종 산출물 태스크의 출력(archiveFile)을 직접
+ * 참조하면 파일명 패턴과 무관하게 "이번 빌드가 실제로 만든 파일"만 정확히 잡혀
+ * 이 문제 자체가 재발하지 않는다.
+ * <p>
+ * 1.21.x(옵퓨스케이티드)는 remapJar가 최종 산출물이지만, 26.x(언옵퓨스케이티드)는
+ * 리매핑 자체가 없어서 jar가 곧 최종 산출물이다 — 버전 문자열로 어느 태스크를
+ * 봐야 할지 분기한다.
+ */
+val collectAllVersionJars by tasks.registering {
+    // 버전별 jar 는 이제 통합 jar 의 재료일 뿐이라 배포 폴더(versions/all)가 아니라 루트 build/ 에 둔다.
+    val collectDir = rootProject.layout.buildDirectory.dir("per-version")
+    val jarTasks = stonecutter.versions.map { v ->
+        val taskName = if (v.project.startsWith("26.")) "jar" else "remapJar"
+        project(":${v.project}").tasks.named(taskName)
+    }
+    // 모으고 나면 각 버전 build/libs는 같은 jar 사본(+sources jar, 옛 버전 jar)일 뿐이라 지운다.
+    // 다음 빌드 때 jar/remapJar가 다시 돌긴 하지만 컴파일 결과는 캐시돼 있어 금방 끝난다.
+    val libsDirs = stonecutter.versions.map { v -> project(":${v.project}").layout.buildDirectory.dir("libs") }
+    stonecutter.versions.forEach { v -> dependsOn("${v.project}:build") }
+
+    doLast {
+        val out = collectDir.get().asFile
+        out.deleteRecursively() // 옛 모드 버전의 재료가 남지 않게
+        out.mkdirs()
+        jarTasks.forEach { taskProvider ->
+            val archiveFile = (taskProvider.get() as AbstractArchiveTask).archiveFile.get().asFile
+            if (archiveFile.exists()) archiveFile.copyTo(out.resolve(archiveFile.name), overwrite = true)
+        }
+        libsDirs.forEach { it.get().asFile.deleteRecursively() }
+        println("버전별 jar: ${out.absolutePath}")
+    }
+}
+
+/**
+ * 통합 jar — 1.21.x·26.x 17개 버전을 jar 하나로 합친다(tools/MergeJars.java 주석).
+ * 결과: versions/all/instant-p2p-<모드 버전>.jar
+ * 병합기는 ASM 이 필요해서 따로 받은 ASM 으로 JDK 소스 실행(java X.java)을 한다 — 빌드 스크립트
+ * 클래스패스에 ASM 을 올리면 Loom 이 쓰는 ASM 과 섞인다.
+ */
+repositories { mavenCentral() }
+val mergeTool by configurations.creating
+dependencies { mergeTool("org.ow2.asm:asm-commons:9.8") }
+
+val mergeJars by tasks.registering {
+    group = "build"
+    dependsOn(collectAllVersionJars)
+    val toolCp = mergeTool
+    val root = rootProject.layout.projectDirectory.asFile
+    val perVersion = rootProject.layout.buildDirectory.dir("per-version")
+    // 1.21.x 를 먼저 — 공유 코드는 앞 jar 것을 쓰는데 Java 21 바이트코드여야 두 시대 모두에서 읽힌다
+    val versions = stonecutter.versions.map { it.project }.sortedBy { it.startsWith("26.") }
+    doLast {
+        val modVersion = Regex("""mod\.version\s*=\s*"([^"]+)"""")
+            .find(root.resolve("stonecutter.properties.toml").readText())!!.groupValues[1]
+        val java = File(System.getProperty("java.home"), "bin/java").absolutePath
+        val out = root.resolve("versions/all/instant-p2p-$modVersion.jar")
+        val inputs = versions.map { v -> "$v=" + perVersion.get().asFile.resolve("instant-p2p-$v-$modVersion.jar").absolutePath }
+        val p = ProcessBuilder(listOf(java, "-cp", toolCp.resolve().joinToString(File.pathSeparator),
+                root.resolve("tools/MergeJars.java").absolutePath, out.absolutePath) + inputs)
+            .inheritIO().start()
+        check(p.waitFor() == 0) { "통합 jar 병합 실패" }
+        println("통합 jar: ${out.absolutePath}")
+    }
+}
+
+tasks.register("buildAllVersions") {
+    group = "build"
+    description = "모든 Stonecutter 버전을 빌드하고 versions/all/ 에 통합 jar 1개를 만든다."
+    dependsOn(collectAllVersionJars, mergeJars)
+}
+
+/**
+ * 루트 프로젝트 자체엔 원래 build 태스크가 없다(Loom이 각 버전 서브프로젝트에만
+ * 적용됨). 그런데 Gradle은 태스크를 경로 없이 이름만("build")으로 실행하면 그
+ * 이름을 가진 태스크를 하위 트리 전체에서 찾아 실행한다 — 그래서 IntelliJ Gradle
+ * 도구창의 "kfc-udplib [build]"(=경로 $PROJECT_DIR$, 태스크명 build)를 눌러도
+ * 실제로는 7개 버전 build가 전부 돌아가는데, 결과는 각자 자기 build/libs/에만
+ * 남고 모아주는 로직을 안 탔다. 루트에 이 이름으로 태스크를 만들어 같은 이름
+ * 매칭에 걸리게 하고, 끝나면 자동으로 모으게 한다.
+ * ":1.21.5:build"처럼 경로를 직접 지정하는 day-to-day 빌드는 이 태스크와 무관하게
+ * 그 서브프로젝트만 빌드된다 — 영향 없음.
+ */
+tasks.register("build") {
+    group = "build"
+    stonecutter.versions.forEach { v -> dependsOn("${v.project}:build") }
+    finalizedBy(collectAllVersionJars, mergeJars)
+}

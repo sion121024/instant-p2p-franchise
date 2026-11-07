@@ -1,0 +1,288 @@
+package kfc.udp.client.signaling;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.Duration;
+import java.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * 개발자·서포터·방송인 UUID 목록 — mc-signaling의 {@code GET /api/v1/roles}에서 받아온다.
+ * 예전엔 DevBadge 클래스에 UUID가 하드코딩돼 있어서 한 명 추가하려면 모드를 다시 빌드·배포해야
+ * 했다 — 이제 운영자가 서버의 roles.json만 SSH로 고치면(재시작도 필요 없다, mc-signaling이
+ * 요청마다 파일을 새로 읽는다) 다음 새로고침 때 바로 반영된다.
+ * <p>
+ * DevNameMixin/DevBadgeMixin이 이름 하나 그릴 때마다 {@link #isDev}/{@link #isSupporter}를
+ * 부르지만(매 프레임 가능) 이건 그냥 메모리 Set.contains라 네트워크와 무관 — 실제 새로고침은
+ * 주기적 타이머가 아니라 명시적 호출로만 일어난다 — 방을 열거나 들어갈 때
+ * ({@code QuicBridge.startHost}/{@code start})의 {@link #refreshAsync()}, 그리고 방장이 접속
+ * 요청을 처리하기 직전의 {@link #refreshBlocking}({@code RoomRoles.ensureFreshForLogin})뿐이다.
+ * 방을 안 켜고 있는 동안은 네트워크를 아예 안 탄다.
+ * <p>
+ * 로컬 파일 캐시는 일부러 안 둔다 — 새로고침이 실패해도(성공했을 때만 덮어쓰므로) 그 세션
+ * 안에서는 마지막 성공값이 메모리에 그대로 남아 있어서, 파일로 남기는 이득은 "이번 실행에서
+ * 첫 새로고침이 하필 실패하는" 딱 그 경우뿐이다(다음 방을 열면 곧 복구된다) — 그 정도를 아끼자고
+ * 로컬에 사람이 편집 가능한 파일을 남기고 싶지 않다는 게 이 설계의 요지.
+ */
+public final class Roles {
+
+    private static final Logger LOG = LoggerFactory.getLogger("instant-p2p-roles");
+    private static final Gson GSON = new GsonBuilder().create();
+    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
+
+    /**
+     * mc-signaling의 개인키(-roles-sign-key)로 서명한 응답만 믿는다 — SIGNALING_URL 기본값이
+     * ws://(평문)라 이 REST 호출도 평문 http라서, 같은 네트워크의 중간자가 응답을 가로채 자기
+     * UUID를 dev/streamer로 끼워 넣을 수 있다. 대칭키(HMAC)로는 못 막는다 — 클라이언트에 박아 넣는
+     * 값은 jar를 풀면 누구나 꺼낼 수 있어 "비밀"이 아니기 때문. 그래서 개인키는 서버에만 두고
+     * 공개키만 여기 박아, 서명 없는(혹은 검증 실패한) 응답은 통째로 버린다(이전 캐시 값 유지).
+     * 서버가 아직 서명 안 하면(개인키 미설정) 이 검증에 걸려 새 값이 전혀 반영되지 않으니 —
+     * roles.json을 실제로 쓰려면 서버에도 -roles-sign-key를 설정해야 한다.
+     */
+    private static final String PUBLIC_KEY_B64 = "bBrZee5a/YT/UyoXRY5DiHAhvRGfaeKtOekGVBhMEeo=";
+    private static final byte[] ED25519_SPKI_PREFIX =
+            {0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00};
+    private static final PublicKey SIGNING_KEY = loadPublicKey(PUBLIC_KEY_B64);
+    /** 가맹점 서버 명단 서명 키(F3.5~, P2PConfig.FRANCHISE_ROLES_PUBKEY). 자리표시자면 null — 그러면 가맹점 명단은 받지 않는다. */
+    private static final PublicKey FRANCHISE_SIGNING_KEY =
+            P2PConfig.isFranchiseRolesKeyConfigured() ? loadPublicKey(P2PConfig.FRANCHISE_ROLES_PUBKEY) : null;
+
+    private static volatile Set<UUID> dev = Set.of();
+    private static volatile Set<UUID> supporter = Set.of();
+    private static volatile Set<UUID> streamer = Set.of();
+    // 가맹점 서버 명단(F3.5~) — 가맹점을 쓰는 동안에만 센다. 가맹점 명단의 "dev"는 본점 개발자가 아니라
+    // "사설섭 개발자"로 친다(isFranchiseDev) — 본점 개발자처럼 보이면 안 된다(아래 FRANCHISE_DEV 주석과 같은 이유).
+    private static volatile Set<UUID> franchiseDev = Set.of();
+    private static volatile Set<UUID> franchiseSupporter = Set.of();
+    private static volatile Set<UUID> franchiseStreamer = Set.of();
+
+    private static boolean onFranchise() {
+        return P2PConfig.getServerProfile() == P2PConfig.ServerProfile.FRANCHISE;
+    }
+
+    private static final HttpClient CLIENT = Http.CLIENT; // 공용(Http 주석)
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "instant-p2p-roles");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private Roles() {}
+
+    public static boolean isDev(UUID id) {
+        return id != null && dev.contains(id);
+    }
+
+    public static boolean isSupporter(UUID id) {
+        if (id == null) return false;
+        return supporter.contains(id) || (onFranchise() && franchiseSupporter.contains(id));
+    }
+
+    public static boolean isStreamer(UUID id) {
+        if (id == null) return false;
+        if (streamer.contains(id)) return true;
+        // 가맹점에서는 가맹점 서버에 채널을 연동한 방송인도 인정한다(StreamLink — 팔로워 기준 이상만).
+        return onFranchise() && (StreamLink.isStreamer(id) || franchiseStreamer.contains(id));
+    }
+
+    /**
+     * 사설섭(가맹점) 개발자 — 원작자의 서명 목록(/api/v1/roles)에는 넣을 수 없어서 모드에 직접 적는다.
+     * 가맹점 서버를 쓰는 동안에만 인정한다(본점에서는 원작자 목록만 따른다 — 본점 개발자처럼 보이면 안 된다).
+     * 등급·특혜는 개발자와 같고(정원 무시·강퇴 면역), 표시만 "사설섭 개발자 ⚙"로 따로 한다.
+     */
+    private static final Set<UUID> FRANCHISE_DEV = Set.of(
+            UUID.fromString("a0837bfc-478f-4d16-82d0-fbfcfdc98905")); // sion_1210
+
+    public static boolean isFranchiseDev(UUID id) {
+        return id != null && onFranchise() && (FRANCHISE_DEV.contains(id) || franchiseDev.contains(id));
+    }
+
+    /** instant-p2p 방을 열거나(QuicBridge.startHost) 들어갈 때(QuicBridge.start)만 부른다 —
+     * 그 외엔 배지가 어차피 안 쓰이니 네트워크를 탈 이유가 없다. 백그라운드 스레드에서 돌고 즉시
+     * 리턴하므로 호출부를 막지 않는다. */
+    public static void refreshAsync() {
+        EXECUTOR.execute(Roles::refreshNow);
+    }
+
+    /** 새로고침이 끝난 뒤 {@code after} 를 같은 백그라운드 스레드에서 부른다(1.5.1, StreamerRelay). */
+    public static void refreshThen(Runnable after) {
+        EXECUTOR.execute(() -> {
+            refreshNow();
+            after.run();
+        });
+    }
+
+    /**
+     * 지금 새로고침하고 <b>최대 timeoutMs까지만</b> 기다린다 — 방장이 접속 요청(LOGIN)을 처리하기
+     * 직전에 부른다. 그 순간의 목록으로 정원 무시 입장 허용이 결정되고 탭 목록 배지가 계산돼
+     * 캐시되기 때문에, 여기서 최신값을 못 받으면 "첫 접속만 어긋나고 두 번째 접속부터 맞는"
+     * 증상이 난다(RoomRoles 클래스 주석 참고).
+     * <p>
+     * HTTP 자체 타임아웃(5초)만큼 서버 스레드를 붙잡으면 안 되니 전용 스레드에 올리고 여기서만
+     * 짧게 기다린다. 시간이 넘으면 캐시값으로 그냥 진행하고, 뒤늦게 도착한 결과도 onChanged로
+     * 똑같이 반영된다 — 그래서 늦어도 결국은 맞춰진다.
+     */
+    public static void refreshBlocking(long timeoutMs, Runnable onChanged) {
+        java.util.concurrent.CompletableFuture<Boolean> f =
+                java.util.concurrent.CompletableFuture.supplyAsync(Roles::refreshNow, EXECUTOR);
+        f.thenAccept(changed -> {
+            if (changed) onChanged.run();
+        });
+        try {
+            f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            LOG.warn("[roles] blocking refresh did not finish in {}ms, using cached values", timeoutMs);
+        }
+    }
+
+    /** @return 목록이 실제로 바뀌었으면 true(실패·무변화는 false). */
+    private static boolean refreshNow() {
+        boolean franchiseChanged = false;
+        {
+            Set<UUID> snapshot = StreamLink.snapshot();
+            StreamLink.refreshStreamers();
+            franchiseChanged = !snapshot.equals(StreamLink.snapshot());
+        }
+        boolean official = refreshOfficial();
+        // 가맹점 명단 — 가맹점에 있고 키가 들어 있을 때만. 키가 자리표시자면 F3.4 그대로(본점 명단 + StreamLink).
+        if (onFranchise() && FRANCHISE_SIGNING_KEY != null) franchiseChanged |= refreshFranchise();
+        return official || franchiseChanged;
+    }
+
+    /**
+     * 가맹점 서버의 명단을 받는다(F3.5~) — 가맹점 키({@link #FRANCHISE_SIGNING_KEY})로 서명이 맞을 때만 믿는다.
+     * 본점 명단은 그대로 두고(원작자 서명) 가맹점 명단은 따로 둔다 — 두 서버가 서로의 명단을 덮어쓰지 못하게.
+     */
+    private static boolean refreshFranchise() {
+        try {
+            HttpRequest req = HttpRequest.newBuilder(URI.create(P2PConfig.signalingHttpUrl() + "/api/v1/roles"))
+                    .timeout(HTTP_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                LOG.warn("[roles] franchise fetch failed: HTTP {}", resp.statusCode());
+                return false;
+            }
+            String sigB64 = resp.headers().firstValue("X-Roles-Signature").orElse(null);
+            if (!verifySignature(FRANCHISE_SIGNING_KEY, resp.body(), sigB64)) {
+                LOG.warn("[roles] franchise response signature missing or invalid, ignoring");
+                return false;
+            }
+            JsonObject o = GSON.fromJson(resp.body(), JsonObject.class);
+            if (o == null) return false;
+            Set<UUID> d = parseUuids(o, "dev"), s = parseUuids(o, "supporter"), st = parseUuids(o, "streamer");
+            boolean changed = !d.equals(franchiseDev) || !s.equals(franchiseSupporter) || !st.equals(franchiseStreamer);
+            franchiseDev = d;
+            franchiseSupporter = s;
+            franchiseStreamer = st;
+            return changed;
+        } catch (Exception e) {
+            LOG.warn("[roles] franchise fetch failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean refreshOfficial() {
+        try {
+            // 매장과 상관없이 늘 본점(원작자 서버)에서 받는다 — 명단은 원작자 서명이 있어야 믿는데(아래 verifySignature),
+            // 가맹점 서버는 원작자 개인키가 없어 서명할 수 없다. 그래서 예전엔 가맹점에선 개발자·서포터·스트리머가 다 빠졌다.
+            HttpRequest req = HttpRequest.newBuilder(URI.create(P2PConfig.officialHttpUrl() + "/api/v1/roles"))
+                    .timeout(HTTP_TIMEOUT)
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                LOG.warn("[roles] fetch failed: HTTP {}", resp.statusCode());
+                return false;
+            }
+            String sigB64 = resp.headers().firstValue("X-Roles-Signature").orElse(null);
+            if (!verifySignature(SIGNING_KEY, resp.body(), sigB64)) {
+                LOG.warn("[roles] response signature missing or invalid, ignoring (possible tampering)");
+                return false;
+            }
+            return apply(resp.body());
+        } catch (Exception e) {
+            LOG.warn("[roles] fetch failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** @return 세 목록 중 하나라도 실제로 달라졌으면 true. */
+    private static boolean apply(String json) {
+        JsonObject o;
+        try {
+            o = GSON.fromJson(json, JsonObject.class);
+        } catch (Exception e) {
+            LOG.warn("[roles] malformed response, keeping previous values: {}", e.getMessage());
+            return false;
+        }
+        if (o == null) return false;
+        Set<UUID> newDev = parseUuids(o, "dev");
+        Set<UUID> newSupporter = parseUuids(o, "supporter");
+        Set<UUID> newStreamer = parseUuids(o, "streamer");
+        boolean changed = !newDev.equals(dev) || !newSupporter.equals(supporter) || !newStreamer.equals(streamer);
+        dev = newDev;
+        supporter = newSupporter;
+        streamer = newStreamer;
+        if (changed) {
+            LOG.debug("[roles] updated: dev={} supporter={} streamer={}", dev.size(), supporter.size(), streamer.size());
+        }
+        return changed;
+    }
+
+    private static PublicKey loadPublicKey(String b64) {
+        try {
+            byte[] raw = Base64.getDecoder().decode(b64);
+            byte[] spki = new byte[ED25519_SPKI_PREFIX.length + raw.length];
+            System.arraycopy(ED25519_SPKI_PREFIX, 0, spki, 0, ED25519_SPKI_PREFIX.length);
+            System.arraycopy(raw, 0, spki, ED25519_SPKI_PREFIX.length, raw.length);
+            return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(spki));
+        } catch (Exception e) {
+            LOG.error("[roles] failed to load embedded signing public key: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static boolean verifySignature(PublicKey key, String body, String sigB64) {
+        if (sigB64 == null || key == null) return false;
+        try {
+            Signature verifier = Signature.getInstance("Ed25519");
+            verifier.initVerify(key);
+            verifier.update(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return verifier.verify(Base64.getDecoder().decode(sigB64));
+        } catch (Exception e) {
+            LOG.warn("[roles] signature verification error: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private static Set<UUID> parseUuids(JsonObject o, String key) {
+        if (!o.has(key) || !o.get(key).isJsonArray()) return Set.of();
+        Set<UUID> out = new HashSet<>();
+        for (var el : o.getAsJsonArray(key)) {
+            try {
+                out.add(UUID.fromString(el.getAsString()));
+            } catch (Exception ignored) {
+                // 잘못 적힌 UUID 한 줄 때문에 나머지 목록까지 버리지 않는다.
+            }
+        }
+        return Set.copyOf(out);
+    }
+}

@@ -1,0 +1,37 @@
+{
+	"schemaVersion": 1,
+	"id": "instant-p2p",
+	"version": "${version}",
+	"name": "Instant P2P 가맹점 F4.0.2",
+	"description": "Instant P2P 가맹점 — 본점(공식 서버)과 가맹점(사설 서버)을 오가는 비공식 수정판. 원본: instant-p2p (KITE2459). 원작자와 무관하므로 이 수정판의 문제는 원작자에게 문의하지 마세요.",
+	"authors": [
+		"KITE2459"
+	],
+	"contributors": [
+		"sion (가맹점 수정판)"
+	],
+	"contact": {
+		"homepage": "https://modrinth.com/mod/instant-p2p",
+		"sources": "https://github.com/KITE2459/kfcudp-instant-p2p"
+	},
+	"license": "MIT",
+	"icon": "assets/instant-p2p/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"client": [
+			"kfc.udp.client.KfcudpClient"
+		]
+	},
+	"mixins": [
+		{
+			"config": "instant-p2p.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": "${loaderDepends}",
+		"minecraft": "${minecraftDepends}",
+		"java": "${javaDepends}",
+		"fabric-api": "*"
+	}
+}
